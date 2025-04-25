@@ -1,6 +1,6 @@
 table 50100 MyInvoisSetup
 {
-    DataClassification = ToBeClassified;
+    DataClassification = CustomerContent;
 
     fields
     {
@@ -20,10 +20,4 @@ table 50100 MyInvoisSetup
     {
         key(PK; "Primary Key") { Clustered = true; }
     }
-
-    // ❌ Remove or comment out to avoid conflict
-    // trigger OnInsert()
-    // begin
-    //     "Primary Key" := 'SETUP';
-    // end;
 }

@@ -1,5 +1,3 @@
-namespace KMAXDev.KMAXDev;
-
 page 50100 MyInvoisSetupCard
 {
     PageType = Card;
@@ -12,7 +10,7 @@ page 50100 MyInvoisSetupCard
     {
         area(content)
         {
-            group("API Credentials")
+            group("API Configuration")
             {
                 field("Client ID"; Rec."Client ID") { ApplicationArea = All; }
                 field("Client Secret"; Rec."Client Secret") { ApplicationArea = All; }
@@ -34,13 +32,13 @@ page 50100 MyInvoisSetupCard
             action(TestConnection)
             {
                 Caption = 'Test Connection';
-                Image = Action;
                 ApplicationArea = All;
+                Image = Action;
 
                 trigger OnAction()
                 var
-                    MyInvoisHelper: Codeunit MyInvoisHelper;
                     Token: Text;
+                    MyInvoisHelper: Codeunit MyInvoisHelper;
                 begin
                     Token := MyInvoisHelper.GetAccessTokenFromSetup(Rec);
                     Message('Access token retrieved: %1', CopyStr(Token, 1, 50) + '...');
@@ -51,12 +49,12 @@ page 50100 MyInvoisSetupCard
 
     trigger OnOpenPage()
     var
-        SetupRec: Record MyInvoisSetup;
+        Setup: Record MyInvoisSetup;
     begin
-        if not SetupRec.Get('SETUP') then begin
-            SetupRec.Init();
-            SetupRec."Primary Key" := 'SETUP'; // ✅ Set explicitly to avoid duplicate error
-            SetupRec.Insert();
+        if not Setup.Get('SETUP') then begin
+            Setup.Init();
+            Setup."Primary Key" := 'SETUP';
+            Setup.Insert();
         end;
     end;
 }
