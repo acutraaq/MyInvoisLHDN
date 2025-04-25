@@ -1,0 +1,32 @@
+{
+  "id": "00589286-aed1-4955-b101-bf31aa75c5c3",
+  "name": "KMAXDev",
+  "publisher": "KMAX",
+  "version": "1.0.0.0",
+  "brief": "e-Invoice integration with MyInvois Malaysia",
+  "description": "Full integration with MyInvois API for e-Invoicing compliance",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "",
+  "dependencies": [],
+  "screenshots": [],
+  "platform": "1.0.0.0",
+  "application": "26.0.0.0",
+  "idRanges": [
+    {
+      "from": 50100,
+      "to": 50149
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "runtime": "15.0",
+  "features": [
+    "NoImplicitWith"
+  ]
+}
