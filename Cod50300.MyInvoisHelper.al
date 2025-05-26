@@ -1,10 +1,19 @@
-codeunit 50100 MyInvoisHelper
+codeunit 50300 MyInvoisHelper
 {
     procedure GetAccessTokenFromSetup(var SetupRec: Record MyInvoisSetup): Text
     var
         Token: Text;
         ExpirySeconds: Integer;
+        ExpiryTime: DateTime;
     begin
+        // ✅ Reuse existing token if still valid
+        if (SetupRec."Last Token" <> '') and (SetupRec."Token Timestamp" <> 0DT) and (SetupRec."Token Expiry (s)" > 0) then begin
+            ExpiryTime := SetupRec."Token Timestamp" + (1000 * SetupRec."Token Expiry (s)"); // milliseconds
+            if ExpiryTime > CurrentDateTime() then
+                exit(SetupRec."Last Token");
+        end;
+
+        // ❌ Token missing or expired – generate new
         Token := GetAccessTokenFromFields(
             SetupRec."Client ID",
             SetupRec."Client Secret",
@@ -49,8 +58,6 @@ codeunit 50100 MyInvoisHelper
             ClientSecret
         );
 
-        Message('Sending body:\n%1', BodyText);
-
         Content.WriteFrom(BodyText);
         Content.GetHeaders(Headers);
         Headers.Clear();
@@ -62,8 +69,6 @@ codeunit 50100 MyInvoisHelper
             Error('Failed to send request to MyInvois token endpoint.');
 
         ResponseMessage.Content().ReadAs(ResponseText);
-        Message('Server response:\n%1', ResponseText);
-
         JsonResponse.ReadFrom(ResponseText);
 
         if JsonResponse.Contains('access_token') then begin

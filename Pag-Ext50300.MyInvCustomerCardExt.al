@@ -1,4 +1,4 @@
-pageextension 50104 MyInvCustomerCardExt extends "Customer Card"
+pageextension 50304 MyInvCustomerCardExt extends "Customer Card"
 {
     actions
     {

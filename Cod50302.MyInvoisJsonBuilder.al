@@ -1,4 +1,4 @@
-codeunit 50102 "MyInvois Json Builder"
+codeunit 50302 "MyInvois Json Builder"
 {
     procedure BuildInvoiceJson(SalesInvHeader: Record "Sales Invoice Header"): JsonObject
     var
@@ -11,7 +11,10 @@ codeunit 50102 "MyInvois Json Builder"
     begin
         // ✅ Base info
         JsonRoot.Add('invoiceType', '01');
-        JsonRoot.Add('invoiceDate', Format(SalesInvHeader."Posting Date", 0, '<Year4>-<Month2>-<Day2>T00:00:00+08:00'));
+
+        // ✅ Correct Date Format (YYYY-MM-DDT00:00:00+08:00)
+        JsonRoot.Add('invoiceDate', CopyStr(Format(SalesInvHeader."Posting Date", 0, 9), 1, 10) + 'T00:00:00+08:00');
+
         JsonRoot.Add('currency', 'MYR');
 
         // ✅ Seller info

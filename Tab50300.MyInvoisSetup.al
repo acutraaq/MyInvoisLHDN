@@ -1,4 +1,4 @@
-table 50100 MyInvoisSetup
+table 50300 MyInvoisSetup
 {
     DataClassification = CustomerContent;
 

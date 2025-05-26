@@ -1,4 +1,4 @@
-codeunit 50101 "MyInvois TIN Validator"
+codeunit 50301 "MyInvois TIN Validator"
 {
     procedure ValidateTIN(var CustomerRec: Record Customer): Text
     var

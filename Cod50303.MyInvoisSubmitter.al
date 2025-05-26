@@ -1,4 +1,4 @@
-codeunit 50103 "MyInvois Submitter"
+codeunit 50303 "MyInvois Submitter"
 {
     procedure SubmitToMyInvois(SalesInvHeader: Record "Sales Invoice Header"): Text
     var
@@ -16,6 +16,11 @@ codeunit 50103 "MyInvois Submitter"
         ResponseJson: JsonObject;
         ValueToken: JsonToken;
         ApiURL: Text;
+
+        // ✅ For QR image download
+        QRUrl: Text;
+        QRResponse: HttpResponseMessage;
+        QRStream: InStream;
     begin
         if not MyInvoisSetup.Get('SETUP') then
             Error('MyInvois Setup not found.');
@@ -61,7 +66,14 @@ codeunit 50103 "MyInvois Submitter"
 
         if ResponseJson.Contains('qrCodeUrl') then begin
             ResponseJson.Get('qrCodeUrl', ValueToken);
-            SalesInvHeader."MyInvois QR URL" := ValueToken.AsValue().AsText();
+            QRUrl := ValueToken.AsValue().AsText();
+            SalesInvHeader."MyInvois QR URL" := QRUrl;
+
+            if QRUrl <> '' then begin
+                HttpClient.Get(QRUrl, QRResponse);
+                QRResponse.Content().ReadAs(QRStream);
+                SalesInvHeader."MyInvois QR Image".ImportStream(QRStream, 'QRCode.png');
+            end;
         end;
 
         if ResponseJson.Contains('pdfUrl') then begin

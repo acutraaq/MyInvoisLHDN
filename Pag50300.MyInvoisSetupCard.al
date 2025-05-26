@@ -1,4 +1,4 @@
-page 50100 MyInvoisSetupCard
+page 50300 MyInvoisSetupCard
 {
     PageType = Card;
     SourceTable = MyInvoisSetup;

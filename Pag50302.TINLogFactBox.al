@@ -1,4 +1,4 @@
-page 50102 "TIN Log FactBox"
+page 50302 "TIN Log FactBox"
 {
     PageType = ListPart;
     SourceTable = "MyInvois TIN Log";

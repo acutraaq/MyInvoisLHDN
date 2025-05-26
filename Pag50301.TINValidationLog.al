@@ -1,4 +1,4 @@
-page 50101 "TIN Validation Log"
+page 50301 "TIN Validation Log"
 {
     PageType = List;
     SourceTable = "MyInvois TIN Log";
