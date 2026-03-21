@@ -9,7 +9,7 @@
     {
         area(content)
         {
-            field("eInv QR Image"; Rec."eInv QR Image")
+            field("eInv QR Image"; Rec."eInvoice QR Image")
             {
                 ApplicationArea = All;
                 ShowCaption = false;

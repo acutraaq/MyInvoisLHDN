@@ -12,7 +12,7 @@
         if not SalesCrMemoHeader.Get(CreditMemoNo) then
             exit(false);
 
-        SalesCrMemoHeader."eInv QR URL" := CopyStr(Url, 1, MaxStrLen(SalesCrMemoHeader."eInv QR URL"));
+        SalesCrMemoHeader."eInvoice QR URL" := CopyStr(Url, 1, MaxStrLen(SalesCrMemoHeader."eInvoice QR URL"));
         SalesCrMemoHeader.Modify();
         exit(true);
     end;
@@ -27,7 +27,7 @@
         if not SalesCrMemoHeader.Get(CreditMemoNo) then
             exit(false);
 
-        SalesCrMemoHeader."eInv QR Image".ImportStream(InS, FileName);
+        SalesCrMemoHeader."eInvoice QR Image".ImportStream(InS, FileName);
         SalesCrMemoHeader.Modify();
         exit(true);
     end;

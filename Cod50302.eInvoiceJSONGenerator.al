@@ -181,7 +181,7 @@ codeunit 50302 "eInvoice JSON Generator"
             exit(false);
 
         if SalesInvoiceHeader.Get(InvoiceNo) then begin
-            SalesInvoiceHeader."eInv QR URL" := CopyStr(Url, 1, MaxStrLen(SalesInvoiceHeader."eInv QR URL"));
+            SalesInvoiceHeader."eInvoice QR URL" := CopyStr(Url, 1, MaxStrLen(SalesInvoiceHeader."eInvoice QR URL"));
             exit(SalesInvoiceHeader.Modify());
         end;
         exit(false);
@@ -202,7 +202,7 @@ codeunit 50302 "eInvoice JSON Generator"
             exit(false);
 
         if SalesInvoiceHeader.Get(InvoiceNo) then begin
-            SalesInvoiceHeader."eInv QR Image".ImportStream(InS, FileName);
+            SalesInvoiceHeader."eInvoice QR Image".ImportStream(InS, FileName);
             exit(SalesInvoiceHeader.Modify());
         end;
         exit(false);
@@ -4953,6 +4953,7 @@ codeunit 50302 "eInvoice JSON Generator"
         CorrelationId: Text;
         ErrorResponseText: Text;
         PipePos: Integer;
+        IsUpdate: Boolean;
     begin
         // Get customer name
         CustomerName := '';
@@ -4969,10 +4970,23 @@ codeunit 50302 "eInvoice JSON Generator"
                 TotalAmountInclVAT += SalesLine."Amount Including VAT";
             until SalesLine.Next() = 0;
 
-        // Create new log entry
-        SubmissionLog.Init();
-        SubmissionLog."Entry No." := 0; // Auto-increment
-        SubmissionLog."Invoice No." := SalesInvoiceHeader."No.";
+        // *** CHANGED: Find existing record instead of always inserting ***
+        SubmissionLog.SetRange("Invoice No.", SalesInvoiceHeader."No.");
+        if DocumentType <> '' then
+            SubmissionLog.SetRange("Document Type", DocumentType);
+        IsUpdate := SubmissionLog.FindFirst();
+
+        if IsUpdate then begin
+            ArchiveCurrentAttempt(SubmissionLog);
+            SubmissionLog."Attempt Number" += 1;
+        end else begin
+            SubmissionLog.Init();
+            SubmissionLog."Entry No." := 0;
+            SubmissionLog."Invoice No." := SalesInvoiceHeader."No.";
+            SubmissionLog."Document Type" := DocumentType;
+            SubmissionLog."Attempt Number" := 1;
+        end;
+
         SubmissionLog."Customer No." := SalesInvoiceHeader."Sell-to Customer No.";
         SubmissionLog."Customer Name" := CustomerName;
         SubmissionLog."Amount" := TotalAmount;
@@ -4986,7 +5000,6 @@ codeunit 50302 "eInvoice JSON Generator"
         SubmissionLog."User ID" := UserId;
         SubmissionLog."Company Name" := CompanyName;
         SubmissionLog."Posting Date" := SalesInvoiceHeader."Posting Date";
-        SubmissionLog."Document Type" := DocumentType;
 
         // Set environment based on setup
         if eInvoiceSetup.Get('SETUP') then
@@ -4994,13 +5007,17 @@ codeunit 50302 "eInvoice JSON Generator"
         else
             SubmissionLog.Environment := SubmissionLog.Environment::Preprod;
 
-        // Insert the log entry first
-        if not SubmissionLog.Insert() then begin
-            // Log error silently to avoid disrupting the main flow
-            LogDebugInfo('Submission Log Error',
-                StrSubstNo('Failed to insert log entry for invoice %1. Error: %2',
-                    SalesInvoiceHeader."No.", GetLastErrorText()));
-            exit;
+        // Update submission log
+        if IsUpdate then begin
+            if not SubmissionLog.Modify(true) then begin
+                LogDebugInfo('Submission Log Error', StrSubstNo('Failed to update log for %1. Error: %2', SalesInvoiceHeader."No.", GetLastErrorText()));
+                exit;
+            end;
+        end else begin
+            if not SubmissionLog.Insert(true) then begin
+                LogDebugInfo('Submission Log Error', StrSubstNo('Failed to insert log for %1. Error: %2', SalesInvoiceHeader."No.", GetLastErrorText()));
+                exit;
+            end;
         end;
 
         // Parse and store error details if present
@@ -5029,6 +5046,37 @@ codeunit 50302 "eInvoice JSON Generator"
                 SubmissionLog.Modify(true);
             end;
         end;
+    end;
+
+    local procedure ArchiveCurrentAttempt(var SubmissionLog: Record "eInvoice Submission Log")
+    var
+        HistoryArray: JsonArray;
+        HistoryEntry: JsonObject;
+        ExistingHistoryText: Text;
+        NewHistoryText: Text;
+        InStream: InStream;
+        OutStream: OutStream;
+    begin
+        if SubmissionLog."Submission History".HasValue then begin
+            SubmissionLog."Submission History".CreateInStream(InStream);
+            InStream.ReadText(ExistingHistoryText);
+            if ExistingHistoryText <> '' then
+                HistoryArray.ReadFrom(ExistingHistoryText);
+        end;
+
+        HistoryEntry.Add('AttemptNo', SubmissionLog."Attempt Number");
+        HistoryEntry.Add('SubmissionUID', SubmissionLog."Submission UID");
+        HistoryEntry.Add('DocumentUUID', SubmissionLog."Document UUID");
+        HistoryEntry.Add('Status', SubmissionLog.Status);
+        HistoryEntry.Add('SubmissionDate', Format(SubmissionLog."Submission Date", 0, 9));
+        HistoryEntry.Add('ErrorMessage', CopyStr(SubmissionLog."Error Message", 1, 200));
+        HistoryEntry.Add('UserID', SubmissionLog."User ID");
+        HistoryArray.Add(HistoryEntry);
+
+        HistoryArray.WriteTo(NewHistoryText);
+        Clear(SubmissionLog."Submission History");
+        SubmissionLog."Submission History".CreateOutStream(OutStream);
+        OutStream.WriteText(NewHistoryText);
     end;
 
     /// <summary>
@@ -5708,7 +5756,7 @@ codeunit 50302 "eInvoice JSON Generator"
             exit(false);
 
         if SalesCrMemoHeader.Get(CreditMemoNo) then begin
-            SalesCrMemoHeader."eInv QR URL" := CopyStr(Url, 1, MaxStrLen(SalesCrMemoHeader."eInv QR URL"));
+            SalesCrMemoHeader."eInvoice QR URL" := CopyStr(Url, 1, MaxStrLen(SalesCrMemoHeader."eInvoice QR URL"));
             exit(SalesCrMemoHeader.Modify());
         end;
         exit(false);
@@ -5722,7 +5770,7 @@ codeunit 50302 "eInvoice JSON Generator"
             exit(false);
 
         if SalesCrMemoHeader.Get(CreditMemoNo) then begin
-            SalesCrMemoHeader."eInv QR Image".ImportStream(InS, FileName);
+            SalesCrMemoHeader."eInvoice QR Image".ImportStream(InS, FileName);
             exit(SalesCrMemoHeader.Modify());
         end;
         exit(false);

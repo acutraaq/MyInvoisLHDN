@@ -199,6 +199,16 @@ table 50312 "eInvoice Submission Log"
             DataClassification = CustomerContent;
             TableRelation = Customer."No.";
         }
+        field(39; "Submission History"; Blob)
+        {
+            Caption = 'Submission History';
+            DataClassification = CustomerContent;
+        }
+        field(40; "Attempt Number"; Integer)
+        {
+            Caption = 'Attempt Number';
+            DataClassification = CustomerContent;
+        }
     }
 
     keys
@@ -240,5 +250,23 @@ table 50312 "eInvoice Submission Log"
         if not CanDelete then
             Error('Cannot delete e-invoice submission log entry. Only entries without Submission UID, without Document UUID, or with Invalid/Submitted status can be deleted.\Submission UID: %1\Document UUID: %2\Status: %3',
                   "Submission UID", "Document UUID", Status);
+    end;
+
+    trigger OnInsert()
+    var
+        ExistingLog: Record "eInvoice Submission Log";
+    begin
+
+        ExistingLog.SetRange("Invoice No.", "Invoice No.");
+        if "Document Type" <> '' then
+            ExistingLog.SetRange("Document Type", "Document Type");
+        ExistingLog.SetFilter(Status, '<>%1&<>%2', 'Cancelled', 'Archived');
+        ExistingLog.SetFilter("Entry No.", '<>%1', "Entry No.");
+
+        if not ExistingLog.IsEmpty() then
+            Error('An active submission log entry already exists for invoice %1. Use Resubmit action instead of creating new entry.', "Invoice No.");
+
+        if "Attempt Number" = 0 then
+            "Attempt Number" := 1;
     end;
 }

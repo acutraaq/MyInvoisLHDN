@@ -72,7 +72,7 @@
                     Visible = IsJotexCompany;
                     Editable = false; // Read-only - only updated from LHDN API
                 }
-                field("eInv QR URL"; Rec."eInv QR URL")
+                field("eInv QR URL"; Rec."eInvoice QR URL")
                 {
                     ApplicationArea = All;
                     Caption = 'Validation URL';
@@ -81,13 +81,34 @@
                     ExtendedDatatype = URL;
                     Editable = false;
                 }
-                field("eInv QR Image"; Rec."eInv QR Image")
+                field("eInv QR Image"; Rec."eInvoice QR Image")
                 {
                     ApplicationArea = All;
                     ShowCaption = false;
                     ToolTip = 'Displays the e-Invoice QR as an image when available.';
                     Visible = IsJotexCompany;
                     Editable = false;
+                }
+                field("Latest Submission Status"; GetLatestSubmissionStatus())
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Status (from Log)';
+                    ToolTip = 'Latest submission status from submission log';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                    Style = Attention;
+                    StyleExpr = LatestStatusIsError;
+                }
+
+                field("Cancellation Time Window"; GetCancellationTimeRemaining())
+                {
+                    ApplicationArea = All;
+                    Caption = 'Cancellation Window';
+                    ToolTip = 'Time remaining to cancel (72-hour limit)';
+                    Visible = ShowCancellationWindow;
+                    Editable = false;
+                    Style = Attention;
+                    StyleExpr = CancellationUrgent;
                 }
             }
         }
@@ -124,8 +145,8 @@
 
                     trigger OnAction()
                     begin
-                        if Rec."eInv QR URL" <> '' then
-                            Hyperlink(Rec."eInv QR URL");
+                        if Rec."eInvoice QR URL" <> '' then
+                            Hyperlink(Rec."eInvoice QR URL");
                     end;
                 }
                 action(GenerateQrImage)
@@ -145,13 +166,13 @@
                         InS: InStream;
                         eInvoiceGenerator: Codeunit "eInvoice JSON Generator";
                     begin
-                        if Rec."eInv QR URL" = '' then begin
+                        if Rec."eInvoice QR URL" = '' then begin
                             Message('No validation URL found.');
                             exit;
                         end;
 
                         // First, call the LHDN validation URL to obtain/prime the response
-                        if not HttpClient.Get(Rec."eInv QR URL", Response) then begin
+                        if not HttpClient.Get(Rec."eInvoice QR URL", Response) then begin
                             Message('Failed to reach the validation URL.');
                             exit;
                         end;
@@ -162,7 +183,7 @@
                         end;
 
                         // Use a QR generation service to render the QR image from the validation URL
-                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInv QR URL");
+                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInvoice QR URL");
 
                         if not HttpClient.Get(QrServiceUrl, Response) then begin
                             Message('Failed to connect to QR service.');
@@ -610,6 +631,11 @@
         IsJotexCompany: Boolean;
         CanCancelEInvoice: Boolean;
         eInvHasQrUrl: Boolean;
+        LatestStatusIsError: Boolean;
+        ShowCancellationWindow: Boolean;
+        CancellationUrgent: Boolean;
+        CancellationTimeText: Text;
+
 
     trigger OnOpenPage()
     var
@@ -618,13 +644,89 @@
         // Check if this is EXACTLY JOTEX SDN BHD (case-sensitive exact match)
         IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
         CanCancelEInvoice := IsCancellationAllowed();
-        eInvHasQrUrl := Rec."eInv QR URL" <> '';
+        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
     end;
 
     trigger OnAfterGetCurrRecord()
+    var
+        CompanyInfo: Record "Company Information";
+        SubmissionLog: Record "eInvoice Submission Log";
+        HoursSince: Decimal;
     begin
+        if CompanyInfo.Get() then
+            IsJotexCompany := (CompanyInfo.Name = 'JOTEX SDN BHD')
+        else
+            IsJotexCompany := false;
+
+        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
         CanCancelEInvoice := IsCancellationAllowed();
-        eInvHasQrUrl := Rec."eInv QR URL" <> '';
+
+        // *** ADD THIS: Calculate cancellation window display ***
+        ShowCancellationWindow := false;
+        CancellationUrgent := false;
+        CancellationTimeText := '';
+
+        if IsJotexCompany and (Rec."eInvoice Validation Status" in ['Valid', 'Accepted']) then begin
+            CancellationTimeText := GetCancellationTimeRemaining();
+            ShowCancellationWindow := CancellationTimeText <> '';
+
+            // Check if urgent (less than 24 hours remaining)
+            SubmissionLog.SetRange("Invoice No.", Rec."No.");
+            SubmissionLog.SetRange(Status, 'Valid');
+            if SubmissionLog.FindLast() then begin
+                HoursSince := CalculateHoursSinceSubmission(SubmissionLog."Submission Date");
+                CancellationUrgent := (HoursSince > 48); // Less than 24 hours remaining
+            end;
+        end;
+    end;
+
+    // Helper method to determine if cancellation is allowed based on current status and submission time
+    local procedure GetLatestSubmissionStatus(): Text[50]
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        if SubmissionLog.FindLast() then
+            exit(SubmissionLog.Status);
+        exit('');
+    end;
+
+    local procedure CalculateHoursSinceSubmission(SubmissionDateTime: DateTime): Decimal
+    begin
+        if SubmissionDateTime = 0DT then
+            exit(0);
+        exit((CurrentDateTime - SubmissionDateTime) / 3600000);
+    end;
+
+    local procedure GetCancellationTimeRemaining(): Text
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+        HoursSince: Decimal;
+        HoursRemaining: Decimal;
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        SubmissionLog.SetRange(Status, 'Valid');
+        if not SubmissionLog.FindLast() then
+            exit('Not applicable');
+        HoursSince := CalculateHoursSinceSubmission(SubmissionLog."Submission Date");
+        HoursRemaining := 72 - HoursSince;
+        if HoursRemaining <= 0 then
+            exit('Cancellation period expired')
+        else if HoursRemaining < 12 then
+            exit(StrSubstNo('%1 hours left', Round(HoursRemaining, 0.1)))
+        else
+            exit(StrSubstNo('%1 hours remaining', Round(HoursRemaining, 0.1)));
+    end;
+
+    local procedure IsCancellationDeadlineApproaching(): Boolean
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        SubmissionLog.SetRange(Status, 'Valid');
+        if not SubmissionLog.FindLast() then
+            exit(false);
+        exit(CalculateHoursSinceSubmission(SubmissionLog."Submission Date") > 48);
     end;
 
     local procedure ExtractLongIdFromApiResponse(ResponseText: Text; DocumentUuid: Text): Text
@@ -1451,6 +1553,15 @@
             if not SubmissionLog.FindLast() then
                 exit(false);
         end;
+
+        // Add time-based check to prevent cancellation after a certain period (e.g. 72 hours) since submission
+        SubmissionLog.Reset();
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        SubmissionLog.SetRange(Status, 'Valid');
+        if not SubmissionLog.FindLast() then
+            exit(false);
+        if CalculateHoursSinceSubmission(SubmissionLog."Submission Date") > 72 then
+            exit(false);
 
         exit(true);
     end;

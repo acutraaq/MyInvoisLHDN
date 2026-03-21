@@ -56,5 +56,40 @@ tableextension 50301 eInvSalesInvoiceExt extends "Sales Invoice Header"
             Caption = 'KMAX e-Invoice Validation Status';
             DataClassification = ToBeClassified;
         }
+        field(50320; "Latest Submission Status"; Text[50])
+        {
+            Caption = 'Latest Submission Status';
+            FieldClass = FlowField;
+            CalcFormula = Lookup("eInvoice Submission Log".Status
+                          WHERE("Invoice No." = FIELD("No.")));
+            Editable = false;
+        }
+
+        field(50321; "Latest Submission Date"; DateTime)
+        {
+            Caption = 'Latest Submission Date';
+            FieldClass = FlowField;
+            CalcFormula = Lookup("eInvoice Submission Log"."Submission Date"
+                          WHERE("Invoice No." = FIELD("No.")));
+            Editable = false;
+        }
+
+        field(50322; "Latest LHDN UUID"; Text[100])
+        {
+            Caption = 'Latest e-Invoice UUID';
+            FieldClass = FlowField;
+            CalcFormula = Lookup("eInvoice Submission Log"."Document UUID"
+                          WHERE("Invoice No." = FIELD("No.")));
+            Editable = false;
+        }
+
+        field(50323; "Latest Error Message"; Text[2048])
+        {
+            Caption = 'Latest Error Message';
+            FieldClass = FlowField;
+            CalcFormula = Lookup("eInvoice Submission Log"."Error Message"
+                          WHERE("Invoice No." = FIELD("No.")));
+            Editable = false;
+        }
     }
 }

@@ -316,6 +316,89 @@ page 50316 "e-Invoice Submission Log"
                 end;
             }
 
+            action(ResubmitToLHDN)
+            {
+                ApplicationArea = All;
+                Caption = 'Resubmit to LHDN';
+                Image = Refresh;
+                ToolTip = 'Resubmit (updates existing entry, archives previous attempt)';
+                Visible = IsJotexCompany;
+                Enabled = CanResubmit;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                trigger OnAction()
+                var
+                    SalesInvoiceHeader: Record "Sales Invoice Header";
+                    SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+                    eInvoiceGenerator: Codeunit "eInvoice JSON Generator";
+                    LhdnResponse: Text;
+                    Success: Boolean;
+                begin
+                    if not (Rec.Status in ['Rejected', 'Submission Failed', 'Invalid', 'Cancelled']) then
+                        Error('Resubmission only allowed for: Rejected, Submission Failed, Invalid, Cancelled. Current: %1', Rec.Status);
+                    if not Confirm('Resubmit %1 (Attempt #%2)?', false, Rec."Invoice No.", Rec."Attempt Number") then
+                        exit;
+                    case Rec."Document Type" of
+                        '01':
+                            begin
+                                if not SalesInvoiceHeader.Get(Rec."Invoice No.") then
+                                    Error('Invoice %1 not found', Rec."Invoice No.");
+                                eInvoiceGenerator.SetSuppressUserDialogs(true);
+                                Success := eInvoiceGenerator.GetSignedInvoiceAndSubmitToLHDN(SalesInvoiceHeader, LhdnResponse);
+                            end;
+                        '02':
+                            begin
+                                if not SalesCrMemoHeader.Get(Rec."Invoice No.") then
+                                    Error('Credit Memo %1 not found', Rec."Invoice No.");
+                                eInvoiceGenerator.SetSuppressUserDialogs(true);
+                                Success := eInvoiceGenerator.GetSignedCreditMemoAndSubmitToLHDN(SalesCrMemoHeader, LhdnResponse);
+                            end;
+                        else
+                            Error('Document type %1 not supported', Rec."Document Type");
+                    end;
+                    if Success then
+                        Message('Resubmitted successfully (Attempt #%1)', Rec."Attempt Number")
+                    else
+                        Message('Resubmission failed: %1', LhdnResponse);
+                    CurrPage.Update(false);
+                end;
+            }
+
+            action(ViewSubmissionHistory)
+            {
+                ApplicationArea = All;
+                Caption = 'View History';
+                Image = History;
+                ToolTip = 'View previous submission attempts';
+                Enabled = Rec."Attempt Number" > 1;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                trigger OnAction()
+                begin
+                    ShowSubmissionHistory();
+                end;
+            }
+
+            action(ConsolidateDuplicates)
+            {
+                ApplicationArea = All;
+                Caption = 'Consolidate Duplicates';
+                Image = Compress;
+                ToolTip = 'Consolidate duplicate entries (keeps latest, archives others)';
+
+                trigger OnAction()
+                var
+                    LogConsolidation: Codeunit "eInvoice Log Consolidation";
+                begin
+                    if not Confirm('Consolidate duplicates? Latest entries kept, older archived then deleted. Cannot undo.', false) then
+                        exit;
+                    LogConsolidation.ConsolidateDuplicateSubmissionLogs();
+                    CurrPage.Update(false);
+                end;
+            }
+
             action(DeleteEntry)
             {
                 ApplicationArea = All;
@@ -852,6 +935,47 @@ page 50316 "e-Invoice Submission Log"
 
         }
     }
+
+
+    local procedure ShowSubmissionHistory()
+    var
+        HistoryText: Text;
+        InStream: InStream;
+        HistoryArray: JsonArray;
+        JsonToken: JsonToken;
+        HistoryEntry: JsonObject;
+        i: Integer;
+        DisplayText: Text;
+    begin
+        if not Rec."Submission History".HasValue then begin
+            Message('No history available');
+            exit;
+        end;
+        Rec."Submission History".CreateInStream(InStream);
+        InStream.ReadText(HistoryText);
+        if not HistoryArray.ReadFrom(HistoryText) then begin
+            Message('Cannot read history');
+            exit;
+        end;
+        DisplayText := StrSubstNo('HISTORY - Invoice: %1, Total Attempts: %2\\\\', Rec."Invoice No.", Rec."Attempt Number");
+        for i := 0 to HistoryArray.Count() - 1 do begin
+            HistoryArray.Get(i, JsonToken);
+            HistoryEntry := JsonToken.AsObject();
+            DisplayText += StrSubstNo('Attempt #%1\\', i + 1);
+            DisplayText += 'Date: ' + GetJsonValue(HistoryEntry, 'SubmissionDate') + '\\';
+            DisplayText += 'Status: ' + GetJsonValue(HistoryEntry, 'Status') + '\\\\';
+        end;
+        Message(DisplayText);
+    end;
+
+    local procedure GetJsonValue(JsonObj: JsonObject; KeyName: Text): Text
+    var
+        JsonToken: JsonToken;
+    begin
+        if JsonObj.Get(KeyName, JsonToken) then
+            exit(JsonToken.AsValue().AsText());
+        exit('');
+    end;
 
     /// <summary>
     /// Removes surrounding quotes from text values
@@ -1551,12 +1675,26 @@ page 50316 "e-Invoice Submission Log"
 
     var
         IsJotexCompany: Boolean;
+        CanResubmit: Boolean;
 
     trigger OnOpenPage()
     var
         CompanyInfo: Record "Company Information";
     begin
         IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
+    end;
+
+    trigger OnAfterGetCurrRecord()
+    var
+        CompanyInfo: Record "Company Information";
+    begin
+        if CompanyInfo.Get() then
+            IsJotexCompany := (CompanyInfo.Name = 'JOTEX SDN BHD')
+        else
+            IsJotexCompany := false;
+
+        // Calculate if resubmit should be enabled
+        CanResubmit := Rec.Status in ['Rejected', 'Submission Failed', 'Invalid', 'Cancelled'];
     end;
 
     /// <summary>
