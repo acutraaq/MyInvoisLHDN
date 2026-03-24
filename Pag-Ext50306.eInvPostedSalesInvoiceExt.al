@@ -72,7 +72,7 @@
                     Visible = IsJotexCompany;
                     Editable = false; // Read-only - only updated from LHDN API
                 }
-                field("eInv QR URL"; Rec."eInvoice QR URL")
+                field("eInv QR URL"; Rec."eInv QR URL")
                 {
                     ApplicationArea = All;
                     Caption = 'Validation URL';
@@ -81,7 +81,7 @@
                     ExtendedDatatype = URL;
                     Editable = false;
                 }
-                field("eInv QR Image"; Rec."eInvoice QR Image")
+                field("eInv QR Image"; Rec."eInv QR Image")
                 {
                     ApplicationArea = All;
                     ShowCaption = false;
@@ -145,8 +145,8 @@
 
                     trigger OnAction()
                     begin
-                        if Rec."eInvoice QR URL" <> '' then
-                            Hyperlink(Rec."eInvoice QR URL");
+                        if Rec."eInv QR URL" <> '' then
+                            Hyperlink(Rec."eInv QR URL");
                     end;
                 }
                 action(GenerateQrImage)
@@ -166,13 +166,13 @@
                         InS: InStream;
                         eInvoiceGenerator: Codeunit "eInvoice JSON Generator";
                     begin
-                        if Rec."eInvoice QR URL" = '' then begin
+                        if Rec."eInv QR URL" = '' then begin
                             Message('No validation URL found.');
                             exit;
                         end;
 
                         // First, call the LHDN validation URL to obtain/prime the response
-                        if not HttpClient.Get(Rec."eInvoice QR URL", Response) then begin
+                        if not HttpClient.Get(Rec."eInv QR URL", Response) then begin
                             Message('Failed to reach the validation URL.');
                             exit;
                         end;
@@ -183,7 +183,7 @@
                         end;
 
                         // Use a QR generation service to render the QR image from the validation URL
-                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInvoice QR URL");
+                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInv QR URL");
 
                         if not HttpClient.Get(QrServiceUrl, Response) then begin
                             Message('Failed to connect to QR service.');
@@ -644,7 +644,7 @@
         // Check if this is EXACTLY JOTEX SDN BHD (case-sensitive exact match)
         IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
         CanCancelEInvoice := IsCancellationAllowed();
-        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
+        eInvHasQrUrl := Rec."eInv QR URL" <> '';
     end;
 
     trigger OnAfterGetCurrRecord()
@@ -658,7 +658,7 @@
         else
             IsJotexCompany := false;
 
-        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
+        eInvHasQrUrl := Rec."eInv QR URL" <> '';
         CanCancelEInvoice := IsCancellationAllowed();
 
         // *** ADD THIS: Calculate cancellation window display ***

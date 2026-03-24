@@ -2,7 +2,7 @@
   "id": "00589286-aed1-4955-b101-bf31aa75c5c3",
   "name": "KMAXDev",
   "publisher": "KMAX",
-  "version": "1.0.0.72",
+  "version": "1.0.0.73",
   "brief": "e-Invoice integration with MyInvois Malaysia",
   "description": "Full integration with MyInvois API for e-Invoicing compliance",
   "privacyStatement": "https://www.kmax.com.my/privacy",

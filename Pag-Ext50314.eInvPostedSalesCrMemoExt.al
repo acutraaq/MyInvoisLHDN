@@ -69,7 +69,7 @@
                     Visible = IsJotexCompany;
                     Editable = false;
                 }
-                field("eInv QR URL"; Rec."eInvoice QR URL")
+                field("eInv QR URL"; Rec."eInv QR URL")
                 {
                     ApplicationArea = All;
                     Caption = 'Validation URL';
@@ -78,7 +78,7 @@
                     ExtendedDatatype = URL;
                     Editable = false;
                 }
-                field("eInv QR Image"; Rec."eInvoice QR Image")
+                field("eInv QR Image"; Rec."eInv QR Image")
                 {
                     ApplicationArea = All;
                     ShowCaption = false;
@@ -127,16 +127,16 @@
                         InS: InStream;
                         eInvoiceQrManager: Codeunit "eInvoice QR Manager";
                     begin
-                        if Rec."eInvoice QR URL" = '' then begin
+                        if Rec."eInv QR URL" = '' then begin
                             Message('No validation URL found.');
                             exit;
                         end;
 
                         // Prime validation URL
-                        HttpClient.Get(Rec."eInvoice QR URL", Response);
+                        HttpClient.Get(Rec."eInv QR URL", Response);
 
                         // Render QR and store via codeunit (has modify permissions)
-                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInvoice QR URL");
+                        QrServiceUrl := StrSubstNo('https://quickchart.io/qr?text=%1&size=220', Rec."eInv QR URL");
                         if not HttpClient.Get(QrServiceUrl, Response) then begin
                             Message('Failed to connect to QR service.');
                             exit;
@@ -164,8 +164,8 @@
 
                     trigger OnAction()
                     begin
-                        if Rec."eInvoice QR URL" <> '' then
-                            Hyperlink(Rec."eInvoice QR URL");
+                        if Rec."eInv QR URL" <> '' then
+                            Hyperlink(Rec."eInv QR URL");
                     end;
                 }
                 action(RefreshStatus)
@@ -513,13 +513,13 @@
     begin
         IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
         CanCancelEInvoice := IsCancellationAllowed();
-        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
+        eInvHasQrUrl := Rec."eInv QR URL" <> '';
     end;
 
     trigger OnAfterGetCurrRecord()
     begin
         CanCancelEInvoice := IsCancellationAllowed();
-        eInvHasQrUrl := Rec."eInvoice QR URL" <> '';
+        eInvHasQrUrl := Rec."eInv QR URL" <> '';
     end;
 
     /// <summary>
