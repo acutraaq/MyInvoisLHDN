@@ -100,6 +100,27 @@
                     StyleExpr = LatestStatusIsError;
                 }
 
+                field("Latest Submission Date"; Rec."Latest Submission Date")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Submission Date';
+                    ToolTip = 'Date and time when the invoice was last submitted to LHDN MyInvois';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                }
+
+                field("Latest Error Message"; Rec."Latest Error Message")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Error Message';
+                    ToolTip = 'Error message from the most recent submission attempt (if any)';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                    MultiLine = true;  // ← Allows long error messages to wrap
+                    Style = Unfavorable;  // ← Makes errors stand out in red
+                    StyleExpr = HasErrorMessage;  // ← Only applies style when there's an error
+                }
+
                 field("Cancellation Time Window"; GetCancellationTimeRemaining())
                 {
                     ApplicationArea = All;
@@ -635,6 +656,7 @@
         ShowCancellationWindow: Boolean;
         CancellationUrgent: Boolean;
         CancellationTimeText: Text;
+        HasErrorMessage: Boolean;
 
 
     trigger OnOpenPage()
@@ -660,6 +682,8 @@
 
         eInvHasQrUrl := Rec."eInv QR URL" <> '';
         CanCancelEInvoice := IsCancellationAllowed();
+
+        HasErrorMessage := Rec."Latest Error Message" <> '';
 
         // *** ADD THIS: Calculate cancellation window display ***
         ShowCancellationWindow := false;
