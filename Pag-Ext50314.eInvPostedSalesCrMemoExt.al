@@ -86,6 +86,37 @@
                     Visible = IsJotexCompany;
                     Editable = false;
                 }
+                field("Latest Submission Status"; GetLatestSubmissionStatus())
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Status (from Log)';
+                    ToolTip = 'Latest submission status from submission log';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                    Style = Attention;
+                    StyleExpr = LatestStatusIsError;
+                }
+
+                field("Latest Submission Date"; Rec."Latest Submission Date")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Submission Date';
+                    ToolTip = 'Date and time when the credit memo was last submitted to LHDN MyInvois';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                }
+
+                field("Latest Error Message"; Rec."Latest Error Message")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Latest Error Message';
+                    ToolTip = 'Error message from the most recent submission attempt (if any)';
+                    Visible = IsJotexCompany;
+                    Editable = false;
+                    MultiLine = true;  // Allows long error messages to wrap
+                    Style = Unfavorable;  // Makes errors stand out in red
+                    StyleExpr = HasErrorMessage;  // Only applies style when there's an error
+                }
             }
         }
         addlast(FactBoxes)
@@ -506,6 +537,8 @@
         IsJotexCompany: Boolean;
         CanCancelEInvoice: Boolean;
         eInvHasQrUrl: Boolean;
+        LatestStatusIsError: Boolean;
+        HasErrorMessage: Boolean;
 
     trigger OnOpenPage()
     var
@@ -520,6 +553,7 @@
     begin
         CanCancelEInvoice := IsCancellationAllowed();
         eInvHasQrUrl := Rec."eInv QR URL" <> '';
+        HasErrorMessage := Rec."Latest Error Message" <> '';
     end;
 
     /// <summary>
@@ -1460,5 +1494,15 @@
                 // Successfully created log entry
             end;
         end;
+    end;
+
+    local procedure GetLatestSubmissionStatus(): Text[50]
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        if SubmissionLog.FindLast() then
+            exit(SubmissionLog.Status);
+        exit('');
     end;
 }

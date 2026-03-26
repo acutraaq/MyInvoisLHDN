@@ -1,5 +1,32 @@
 pageextension 50321 "Posted Sales Invoices Ext" extends "Posted Sales Invoices"
 {
+    layout
+    {
+        addlast(Control1)  // Control1 is the repeater in Posted Sales Invoices list
+        {
+            field("Latest Submission Status"; GetLatestSubmissionStatus())
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Status (from Log)';
+                ToolTip = 'Latest submission status from submission log';
+            }
+
+            field("Latest Submission Date"; Rec."Latest Submission Date")
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Submission Date';
+                ToolTip = 'Date and time when the invoice was last submitted to LHDN MyInvois';
+            }
+
+            field("Latest Error Message"; Rec."Latest Error Message")
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Error Message';
+                ToolTip = 'Error message from the most recent submission attempt (if any)';
+            }
+        }
+    }
+
     actions
     {
         addlast(processing)
@@ -271,5 +298,16 @@ pageextension 50321 "Posted Sales Invoices Ext" extends "Posted Sales Invoices"
         TempExcelBuffer.CloseBook();
         TempExcelBuffer.SetFriendlyFilename(FileName);
         TempExcelBuffer.OpenExcel();
+    end;
+
+    // Procedure needed for Latest Status field
+    local procedure GetLatestSubmissionStatus(): Text[50]
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        if SubmissionLog.FindLast() then
+            exit(SubmissionLog.Status);
+        exit('');
     end;
 }

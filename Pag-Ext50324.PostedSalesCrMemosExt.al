@@ -1,5 +1,32 @@
 pageextension 50324 "Posted Sales Cr Memos Ext" extends "Posted Sales Credit Memos"
 {
+    layout
+    {
+        addlast(Control1)  // Control1 is the repeater in Posted Sales Credit Memos list
+        {
+            field("Latest Submission Status"; GetLatestSubmissionStatus())
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Status (from Log)';
+                ToolTip = 'Latest submission status from submission log';
+            }
+
+            field("Latest Submission Date"; Rec."Latest Submission Date")
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Submission Date';
+                ToolTip = 'Date and time when the credit memo was last submitted to LHDN MyInvois';
+            }
+
+            field("Latest Error Message"; Rec."Latest Error Message")
+            {
+                ApplicationArea = All;
+                Caption = 'Latest Error Message';
+                ToolTip = 'Error message from the most recent submission attempt (if any)';
+            }
+        }
+    }
+
     actions
     {
         addlast(processing)
@@ -271,5 +298,16 @@ pageextension 50324 "Posted Sales Cr Memos Ext" extends "Posted Sales Credit Mem
         TempExcelBuffer.CloseBook();
         TempExcelBuffer.SetFriendlyFilename(FileName);
         TempExcelBuffer.OpenExcel();
+    end;
+
+    // Procedure needed for latest submission status field
+    local procedure GetLatestSubmissionStatus(): Text[50]
+    var
+        SubmissionLog: Record "eInvoice Submission Log";
+    begin
+        SubmissionLog.SetRange("Invoice No.", Rec."No.");
+        if SubmissionLog.FindLast() then
+            exit(SubmissionLog.Status);
+        exit('');
     end;
 }
