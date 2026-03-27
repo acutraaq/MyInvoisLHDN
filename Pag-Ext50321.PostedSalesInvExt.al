@@ -4,7 +4,7 @@ pageextension 50321 "Posted Sales Invoices Ext" extends "Posted Sales Invoices"
     {
         addlast(Control1)  // Control1 is the repeater in Posted Sales Invoices list
         {
-            field("Latest Submission Status"; GetLatestSubmissionStatus())
+            field("Latest Submission Status"; Rec."Latest Submission Status")
             {
                 ApplicationArea = All;
                 Caption = 'Latest Status (from Log)';

@@ -56,12 +56,21 @@ tableextension 50301 eInvSalesInvoiceExt extends "Sales Invoice Header"
             Caption = 'KMAX e-Invoice Validation Status';
             DataClassification = ToBeClassified;
         }
+        field(50319; "Latest Submission Entry No."; Integer)
+        {
+            Caption = 'Latest Submission Entry No.';
+            FieldClass = FlowField;
+            CalcFormula = Max("eInvoice Submission Log"."Entry No."
+                        WHERE("Invoice No." = FIELD("No.")));
+            Editable = false;
+        }
         field(50320; "Latest Submission Status"; Text[50])
         {
             Caption = 'Latest Submission Status';
             FieldClass = FlowField;
             CalcFormula = Lookup("eInvoice Submission Log".Status
-                          WHERE("Invoice No." = FIELD("No.")));
+                          WHERE("Invoice No." = FIELD("No."),
+                                "Entry No." = FIELD("Latest Submission Entry No.")));
             Editable = false;
         }
 
@@ -70,7 +79,8 @@ tableextension 50301 eInvSalesInvoiceExt extends "Sales Invoice Header"
             Caption = 'Latest Submission Date';
             FieldClass = FlowField;
             CalcFormula = Lookup("eInvoice Submission Log"."Submission Date"
-                          WHERE("Invoice No." = FIELD("No.")));
+                          WHERE("Invoice No." = FIELD("No."),
+                                "Entry No." = FIELD("Latest Submission Entry No.")));
             Editable = false;
         }
 
@@ -79,7 +89,8 @@ tableextension 50301 eInvSalesInvoiceExt extends "Sales Invoice Header"
             Caption = 'Latest e-Invoice UUID';
             FieldClass = FlowField;
             CalcFormula = Lookup("eInvoice Submission Log"."Document UUID"
-                          WHERE("Invoice No." = FIELD("No.")));
+                          WHERE("Invoice No." = FIELD("No."),
+                                "Entry No." = FIELD("Latest Submission Entry No.")));
             Editable = false;
         }
 
@@ -88,7 +99,8 @@ tableextension 50301 eInvSalesInvoiceExt extends "Sales Invoice Header"
             Caption = 'Latest Error Message';
             FieldClass = FlowField;
             CalcFormula = Lookup("eInvoice Submission Log"."Error Message"
-                          WHERE("Invoice No." = FIELD("No.")));
+                          WHERE("Invoice No." = FIELD("No."),
+                                "Entry No." = FIELD("Latest Submission Entry No.")));
             Editable = false;
         }
     }
