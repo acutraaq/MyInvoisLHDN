@@ -406,6 +406,7 @@ page 50316 "e-Invoice Submission Log"
                 Image = Delete;
                 ToolTip = 'Delete this entry (allowed if Submission UID is empty/null OR Document UUID is empty/null OR Status is Invalid/Submitted).';
                 Visible = true;
+                Enabled = false; // Disable button
 
                 trigger OnAction()
                 var
@@ -453,6 +454,7 @@ page 50316 "e-Invoice Submission Log"
                 Image = Delete;
                 ToolTip = 'Delete selected entries that meet deletion criteria (no Submission UID, no Document UUID, or Invalid/Submitted status).';
                 Visible = true;
+                Enabled = false; // Disable button
 
                 trigger OnAction()
                 var
