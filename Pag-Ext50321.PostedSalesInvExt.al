@@ -114,62 +114,6 @@ pageextension 50321 "Posted Sales Invoices Ext" extends "Posted Sales Invoices"
                     ExportPostedSalesInvoices(Rec);
                 end;
             }
-
-            action(BulkAutoRecoverFromLHDN)
-            {
-                Caption = 'Bulk Auto-Recover Missing Data';
-                ApplicationArea = All;
-                Promoted = true;
-                PromotedCategory = Process;
-                PromotedIsBig = true;
-                Image = Restore;
-                ToolTip = 'Automatically recover missing submission data for all invoices that were submitted to LHDN but have empty status in BC';
-
-                trigger OnAction()
-                var
-                    SalesInvHeader: Record "Sales Invoice Header";
-                    AutoRecoveryCU: Codeunit "eInvoice Auto Recovery";
-                    RecoveryResults: Text;
-                    TotalCount: Integer;
-                    SuccessCount: Integer;
-                    FailCount: Integer;
-                    SkipCount: Integer;
-                begin
-                    // Find all invoices with missing submission data
-                    SalesInvHeader.SetRange("eInvoice Submission UID", '');
-                    SalesInvHeader.SetRange("eInvoice UUID", '');
-                    SalesInvHeader.SetRange("eInvoice Document Type", '01'); // Only invoices
-
-                    TotalCount := SalesInvHeader.Count();
-
-                    if TotalCount = 0 then begin
-                        Message('No invoices found with missing submission data in the last 30 days.');
-                        exit;
-                    end;
-
-                    if not Confirm('Found %1 invoices with missing submission data.\\' +
-                                  'Do you want to automatically recover their data from LHDN?\\\\' +
-                                  'This will search LHDN portal and may take several minutes.\\' +
-                                  'Rate limiting: ~300ms per invoice.',
-                                  true, TotalCount) then
-                        exit;
-
-                    // Process bulk recovery
-                    AutoRecoveryCU.BulkAutoRecoverInvoices(SalesInvHeader, SuccessCount, FailCount, SkipCount, RecoveryResults);
-
-                    // Show results
-                    Message('Bulk Auto-Recovery Completed!\\\\' +
-                           'Total invoices processed: %1\\' +
-                           'Successfully recovered: %2\\' +
-                           'Failed: %3\\' +
-                           'Skipped: %4\\\\' +
-                           'Details:\\%5',
-                           TotalCount, SuccessCount, FailCount, SkipCount, RecoveryResults);
-
-                    // Refresh the page
-                    CurrPage.Update(false);
-                end;
-            }
         }
     }
 
