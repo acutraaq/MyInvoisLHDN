@@ -86,7 +86,7 @@
                     Visible = IsJotexCompany;
                     Editable = false;
                 }
-                field("Latest Submission Status"; GetLatestSubmissionStatus())
+                field("Latest Submission Status"; Rec."Latest Submission Status")
                 {
                     ApplicationArea = All;
                     Caption = 'Latest Status (from Log)';
