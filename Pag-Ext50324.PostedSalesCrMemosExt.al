@@ -4,7 +4,7 @@ pageextension 50324 "Posted Sales Cr Memos Ext" extends "Posted Sales Credit Mem
     {
         addlast(Control1)  // Control1 is the repeater in Posted Sales Credit Memos list
         {
-            field("Latest Submission Status"; GetLatestSubmissionStatus())
+            field("Latest Submission Status"; Rec."Latest Submission Status")
             {
                 ApplicationArea = All;
                 Caption = 'Latest Status (from Log)';
