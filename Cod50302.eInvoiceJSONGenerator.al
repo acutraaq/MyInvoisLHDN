@@ -36,7 +36,8 @@
 codeunit 50302 "eInvoice JSON Generator"
 {
     Permissions = tabledata "Sales Invoice Header" = M,
-                  tabledata "Sales Cr.Memo Header" = M;
+                  tabledata "Sales Cr.Memo Header" = M,
+                  tabledata "eInvoice Submission Log" = RIM;
 
     var
         SuppressUserDialogs: Boolean;
