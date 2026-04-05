@@ -7280,4 +7280,217 @@ codeunit 50302 "eInvoice JSON Generator"
 
         Message('%1 submission log entries have been updated with correct amounts.', UpdateCount);
     end;
+
+    procedure BackfillSubmissionLogsFromLHDN()
+    var
+        SalesInvoiceHeader: Record "Sales Invoice Header";
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        SubmissionLog: Record "eInvoice Submission Log";
+        SubmissionStatusCU: Codeunit "eInvoice Submission Status";
+        SubmissionDetails: Text;
+        DocumentType: Text;
+        ResponseJson: JsonObject;
+        JsonToken: JsonToken;
+        DocumentSummaryArray: JsonArray;
+        DocumentJson: JsonObject;
+        DateTimeReceived: DateTime;
+        DateTimeIssued: DateTime;
+        DateTimeValidated: DateTime;
+        CancelDateTime: DateTime;
+        IssuerName: Text;
+        ReceiverName: Text;
+        TotalPayableAmount: Decimal;
+        CreatedCount: Integer;
+        UpdatedCount: Integer;
+        i: Integer;
+    begin
+        // Find all invoices with Submission UID but no log entry
+        SalesInvoiceHeader.SetFilter("eInvoice Submission UID", '<>%1', '');
+        if SalesInvoiceHeader.FindSet() then begin
+            repeat
+                // Check if log entry exists
+                SubmissionLog.Reset();
+                SubmissionLog.SetRange("Invoice No.", SalesInvoiceHeader."No.");
+                SubmissionLog.SetRange("Submission UID", SalesInvoiceHeader."eInvoice Submission UID");
+
+                if not SubmissionLog.FindFirst() then begin
+                    // Call LHDN API to get submission details
+                    if SubmissionStatusCU.CheckSubmissionStatus(
+                        SalesInvoiceHeader."eInvoice Submission UID",
+                        SubmissionDetails,
+                        DocumentType) then begin
+
+                        // Parse the API response
+                        if ParseLHDNResponseForBackfill(
+                            SubmissionDetails,
+                            SalesInvoiceHeader."eInvoice UUID",
+                            DateTimeReceived,
+                            DateTimeIssued,
+                            DateTimeValidated,
+                            CancelDateTime,
+                            IssuerName,
+                            ReceiverName,
+                            TotalPayableAmount) then begin
+
+                            // Create submission log with real data from LHDN
+                            SubmissionLog.Init();
+                            SubmissionLog."Entry No." := 0;
+                            SubmissionLog."Invoice No." := SalesInvoiceHeader."No.";
+                            SubmissionLog."Customer No." := SalesInvoiceHeader."Sell-to Customer No.";
+                            SubmissionLog."Customer Name" := ReceiverName; // From LHDN!
+                            SubmissionLog."Submission UID" := SalesInvoiceHeader."eInvoice Submission UID";
+                            SubmissionLog."Document UUID" := SalesInvoiceHeader."eInvoice UUID";
+                            SubmissionLog."Amount Including VAT" := TotalPayableAmount; // From LHDN!
+
+                            // Use LHDN timestamps
+                            SubmissionLog."Submission Date" := DateTimeReceived; // When LHDN received
+                            SubmissionLog."Response Date" := DateTimeValidated; // When LHDN validated
+                            SubmissionLog."Cancellation Date" := CancelDateTime; // If cancelled
+
+                            SubmissionLog.Status := SalesInvoiceHeader."eInvoice Validation Status";
+                            SubmissionLog."Last Updated" := CurrentDateTime;
+                            SubmissionLog."User ID" := 'LHDN-BACKFILL';
+                            SubmissionLog."Company Name" := IssuerName; // From LHDN!
+                            SubmissionLog."Posting Date" := SalesInvoiceHeader."Posting Date";
+                            SubmissionLog."Document Type" := SalesInvoiceHeader."eInvoice Document Type";
+                            SubmissionLog."Error Message" := 'Backfilled from LHDN API';
+
+                            if SubmissionLog.Insert(true) then
+                                CreatedCount += 1;
+                        end;
+                    end;
+
+                    // Rate limiting: Wait between API calls
+                    Sleep(5000); // 5 seconds per LHDN recommendation
+                end;
+            until SalesInvoiceHeader.Next() = 0;
+        end;
+
+        // Process Credit Memos
+        SalesCrMemoHeader.SetFilter("eInvoice Submission UID", '<>%1', '');
+        if SalesCrMemoHeader.FindSet() then begin
+            repeat
+                // Check if log entry exists
+                SubmissionLog.Reset();
+                SubmissionLog.SetRange("Invoice No.", SalesCrMemoHeader."No.");
+                SubmissionLog.SetRange("Submission UID", SalesCrMemoHeader."eInvoice Submission UID");
+
+                if not SubmissionLog.FindFirst() then begin
+                    // Call LHDN API to get submission details
+                    if SubmissionStatusCU.CheckSubmissionStatus(
+                        SalesCrMemoHeader."eInvoice Submission UID",
+                        SubmissionDetails,
+                        DocumentType) then begin
+
+                        // Parse the API response
+                        if ParseLHDNResponseForBackfill(
+                            SubmissionDetails,
+                            SalesCrMemoHeader."eInvoice UUID",
+                            DateTimeReceived,
+                            DateTimeIssued,
+                            DateTimeValidated,
+                            CancelDateTime,
+                            IssuerName,
+                            ReceiverName,
+                            TotalPayableAmount) then begin
+
+                            // Create submission log for credit memo
+                            SubmissionLog.Init();
+                            SubmissionLog."Entry No." := 0;
+                            SubmissionLog."Invoice No." := SalesCrMemoHeader."No.";
+                            SubmissionLog."Customer No." := SalesCrMemoHeader."Sell-to Customer No.";
+                            SubmissionLog."Customer Name" := ReceiverName;
+                            SubmissionLog."Submission UID" := SalesCrMemoHeader."eInvoice Submission UID";
+                            SubmissionLog."Document UUID" := SalesCrMemoHeader."eInvoice UUID";
+                            SubmissionLog."Amount Including VAT" := TotalPayableAmount;
+
+                            // Use LHDN timestamps
+                            SubmissionLog."Submission Date" := DateTimeReceived;
+                            SubmissionLog."Response Date" := DateTimeValidated;
+                            SubmissionLog."Cancellation Date" := CancelDateTime;
+
+                            SubmissionLog.Status := SalesCrMemoHeader."eInvoice Validation Status";
+                            SubmissionLog."Last Updated" := CurrentDateTime;
+                            SubmissionLog."User ID" := 'LHDN-BACKFILL';
+                            SubmissionLog."Company Name" := IssuerName;
+                            SubmissionLog."Posting Date" := SalesCrMemoHeader."Posting Date";
+                            SubmissionLog."Document Type" := SalesCrMemoHeader."eInvoice Document Type";
+                            SubmissionLog."Error Message" := 'Backfilled from LHDN API';
+
+                            if SubmissionLog.Insert(true) then
+                                CreatedCount += 1;
+                        end;
+                    end;
+
+                    // Rate limiting
+                    Sleep(5000);
+                end;
+            until SalesCrMemoHeader.Next() = 0;
+        end;
+
+        Message('Backfill Complete:\Created: %1 log entries from LHDN API', CreatedCount);
+    end;
+
+    local procedure ParseLHDNResponseForBackfill(
+        ResponseText: Text;
+        DocumentUUID: Text;
+        var DateTimeReceived: DateTime;
+        var DateTimeIssued: DateTime;
+        var DateTimeValidated: DateTime;
+        var CancelDateTime: DateTime;
+        var IssuerName: Text;
+        var ReceiverName: Text;
+        var TotalPayableAmount: Decimal): Boolean
+    var
+        JsonObject: JsonObject;
+        JsonToken: JsonToken;
+        DocumentSummaryArray: JsonArray;
+        DocumentJson: JsonObject;
+        UuidValue: Text;
+        i: Integer;
+    begin
+        if not JsonObject.ReadFrom(ResponseText) then
+            exit(false);
+
+        // Get submission-level dateTimeReceived
+        if JsonObject.Get('dateTimeReceived', JsonToken) then
+            Evaluate(DateTimeReceived, JsonToken.AsValue().AsText());
+
+        // Find the specific document in documentSummary array
+        if JsonObject.Get('documentSummary', JsonToken) and JsonToken.IsArray() then begin
+            DocumentSummaryArray := JsonToken.AsArray();
+
+            for i := 0 to DocumentSummaryArray.Count() - 1 do begin
+                DocumentSummaryArray.Get(i, JsonToken);
+                if JsonToken.IsObject() then begin
+                    DocumentJson := JsonToken.AsObject();
+
+                    // Check if this is our document
+                    if DocumentJson.Get('uuid', JsonToken) then
+                        UuidValue := JsonToken.AsValue().AsText();
+
+                    if UuidValue = DocumentUUID then begin
+                        // Extract all fields
+                        if DocumentJson.Get('dateTimeIssued', JsonToken) then
+                            Evaluate(DateTimeIssued, JsonToken.AsValue().AsText());
+                        if DocumentJson.Get('dateTimeValidated', JsonToken) then
+                            Evaluate(DateTimeValidated, JsonToken.AsValue().AsText());
+                        if DocumentJson.Get('cancelDateTime', JsonToken) then
+                            Evaluate(CancelDateTime, JsonToken.AsValue().AsText());
+                        if DocumentJson.Get('issuerName', JsonToken) then
+                            IssuerName := JsonToken.AsValue().AsText();
+                        if DocumentJson.Get('receiverName', JsonToken) then
+                            ReceiverName := JsonToken.AsValue().AsText();
+                        if DocumentJson.Get('totalPayableAmount', JsonToken) then
+                            TotalPayableAmount := JsonToken.AsValue().AsDecimal();
+
+                        exit(true);
+                    end;
+                end;
+            end;
+        end;
+
+        exit(false);
+    end;
+
 }

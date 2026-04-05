@@ -934,6 +934,23 @@ page 50316 "e-Invoice Submission Log"
                 end;
             }
 
+            action(BackfillMissingLogs)
+            {
+                ApplicationArea = All;
+                Caption = 'Backfill Missing Logs';
+                Image = SuggestTables;
+                ToolTip = 'Create submission log entries for invoices that were submitted before the permission fix';
+                Visible = true;
+
+                trigger OnAction()
+                var
+                    eInvoiceJSONGenerator: Codeunit "eInvoice JSON Generator";
+                begin
+                    if Confirm('This will create submission log entries for all invoices that have LHDN data but no log entry.\Do you want to continue?') then
+                        eInvoiceJSONGenerator.BackfillSubmissionLogsFromLHDN();
+                end;
+            }
+
 
         }
     }
