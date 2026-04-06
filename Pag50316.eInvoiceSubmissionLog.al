@@ -943,37 +943,24 @@ page 50316 "e-Invoice Submission Log"
 
                 trigger OnAction()
                 var
-                    JobQueueEntry: Record "Job Queue Entry";
+                    SessionId: Integer;
+                    eInvoiceGenerator: Codeunit "eInvoice JSON Generator";
                 begin
                     if not Confirm('This will retrieve submission data from LHDN API for all invoices and credit memos with Submission UIDs.\' +
-                                '\\This will run as a BACKGROUND JOB and may take several minutes.\' +
-                                'Check "Job Queue Entries" page to monitor progress.\' +
+                                '\\This will run as a BACKGROUND SESSION and may take several minutes.\' +
+                                'You can continue working while it processes.\' +
                                 '\\Continue?') then
                         exit;
 
-                    // Create background job
-                    JobQueueEntry.Init();
-                    JobQueueEntry."Object Type to Run" := JobQueueEntry."Object Type to Run"::Codeunit;
-                    JobQueueEntry."Object ID to Run" := Codeunit::"eInvoice JSON Generator";
-                    JobQueueEntry."Run in User Session" := false; // Important: Run in background
-                    JobQueueEntry."Job Queue Category Code" := 'EINVOICE';
-                    JobQueueEntry.Description := 'eInvoice Backfill - Create Missing Submission Logs';
-                    JobQueueEntry."Parameter String" := 'BACKFILL_LOGS'; // Identifier for logging
-                    JobQueueEntry."User ID" := UserId;
-                    JobQueueEntry."Earliest Start Date/Time" := CurrentDateTime + 5000; // Start in 5 seconds
-                    JobQueueEntry.Status := JobQueueEntry.Status::Ready;
-                    JobQueueEntry."Maximum No. of Attempts to Run" := 1;
-                    JobQueueEntry."Rerun Delay (sec.)" := 0;
-
-                    if JobQueueEntry.Insert(true) then
-                        Message('Background job created successfully!\' +
-                                '\\Job ID: %1\' +
-                                'Will start in approximately 5 seconds.\' +
-                                '\\Monitor progress in "Job Queue Entries" page.\' +
-                                'Refresh this page after completion to see new log entries.',
-                                JobQueueEntry."Entry No.")
+                    // Start backgorund session that allows HTTP calls
+                    if StartSession(SessionId, Codeunit::"eInvoice JSON Generator", CompanyName) then
+                        Message('Backfill started successfully!\' +
+                                '\\Session ID: %1\' +
+                                'The process is running in the background.\' +
+                                'Refresh this page in a few minutes to see new log entries.',
+                                SessionId)
                     else
-                        Error('Failed to create background job. Please contact system administrator.');
+                        Error('Failed to start background seesion.');
                 end;
             }
 

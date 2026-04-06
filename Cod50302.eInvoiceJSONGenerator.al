@@ -42,7 +42,7 @@ codeunit 50302 "eInvoice JSON Generator"
     // ADD THIS TRIGGER:
     trigger OnRun()
     begin
-        // Called when executed via Job Queue Entry
+        // Called when executed via StartSession
         RunBackfillAsJob();
     end;
 
@@ -7467,16 +7467,12 @@ codeunit 50302 "eInvoice JSON Generator"
     /// Helper to log messages in both UI and Job Queue contexts
     /// </summary>
     local procedure LogMessage(MessageText: Text)
-    var
-        SessionInformation: Record "Session Event";
     begin
         // Try to show message if in UI context, otherwise silently log
         if GuiAllowed then
             Message(MessageText)
-        else begin
-            // Log to event log for Job Queue execution
-            // In production, you might want to write to a custom log table
-        end;
+        // In background session: Message calls are ignored, execution continues normally
+        // Results can be viewed by checking submission log entries after completion
     end;
 
     local procedure ParseLHDNResponseForBackfill(
