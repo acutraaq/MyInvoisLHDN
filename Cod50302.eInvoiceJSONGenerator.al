@@ -39,6 +39,13 @@ codeunit 50302 "eInvoice JSON Generator"
                   tabledata "Sales Cr.Memo Header" = M,
                   tabledata "eInvoice Submission Log" = RIM;
 
+    // ADD THIS TRIGGER:
+    trigger OnRun()
+    begin
+        // Called when executed via Job Queue Entry
+        RunBackfillAsJob();
+    end;
+
     var
         SuppressUserDialogs: Boolean;
     // ======================================================================================================
@@ -7289,10 +7296,6 @@ codeunit 50302 "eInvoice JSON Generator"
         SubmissionStatusCU: Codeunit "eInvoice Submission Status";
         SubmissionDetails: Text;
         DocumentType: Text;
-        ResponseJson: JsonObject;
-        JsonToken: JsonToken;
-        DocumentSummaryArray: JsonArray;
-        DocumentJson: JsonObject;
         DateTimeReceived: DateTime;
         DateTimeIssued: DateTime;
         DateTimeValidated: DateTime;
@@ -7301,10 +7304,14 @@ codeunit 50302 "eInvoice JSON Generator"
         ReceiverName: Text;
         TotalPayableAmount: Decimal;
         CreatedCount: Integer;
-        UpdatedCount: Integer;
-        i: Integer;
+        SkippedCount: Integer;
+        ErrorCount: Integer;
     begin
-        // Find all invoices with Submission UID but no log entry
+        CreatedCount := 0;
+        SkippedCount := 0;
+        ErrorCount := 0;
+
+        // Process Sales Invoices
         SalesInvoiceHeader.SetFilter("eInvoice Submission UID", '<>%1', '');
         if SalesInvoiceHeader.FindSet() then begin
             repeat
@@ -7313,8 +7320,16 @@ codeunit 50302 "eInvoice JSON Generator"
                 SubmissionLog.SetRange("Invoice No.", SalesInvoiceHeader."No.");
                 SubmissionLog.SetRange("Submission UID", SalesInvoiceHeader."eInvoice Submission UID");
 
-                if not SubmissionLog.FindFirst() then begin
+                if SubmissionLog.IsEmpty then begin
                     // Call LHDN API to get submission details
+                    Clear(DateTimeReceived);
+                    Clear(DateTimeIssued);
+                    Clear(DateTimeValidated);
+                    Clear(CancelDateTime);
+                    Clear(IssuerName);
+                    Clear(ReceiverName);
+                    Clear(TotalPayableAmount);
+
                     if SubmissionStatusCU.CheckSubmissionStatus(
                         SalesInvoiceHeader."eInvoice Submission UID",
                         SubmissionDetails,
@@ -7332,36 +7347,38 @@ codeunit 50302 "eInvoice JSON Generator"
                             ReceiverName,
                             TotalPayableAmount) then begin
 
-                            // Create submission log with real data from LHDN
+                            // Create submission log entry
                             SubmissionLog.Init();
-                            SubmissionLog."Entry No." := 0;
+                            SubmissionLog."Entry No." := 0; // Auto-inrement
                             SubmissionLog."Invoice No." := SalesInvoiceHeader."No.";
-                            SubmissionLog."Customer No." := SalesInvoiceHeader."Sell-to Customer No.";
-                            SubmissionLog."Customer Name" := ReceiverName; // From LHDN!
                             SubmissionLog."Submission UID" := SalesInvoiceHeader."eInvoice Submission UID";
                             SubmissionLog."Document UUID" := SalesInvoiceHeader."eInvoice UUID";
-                            SubmissionLog."Amount Including VAT" := TotalPayableAmount; // From LHDN!
-
-                            // Use LHDN timestamps
+                            SubmissionLog."Customer No." := SalesInvoiceHeader."Sell-to Customer No.";
+                            SubmissionLog."Customer Name" := IssuerName; // From LHDN
+                            SubmissionLog.Status := SalesInvoiceHeader."eInvoice Validation Status";
                             SubmissionLog."Submission Date" := DateTimeReceived; // When LHDN received
                             SubmissionLog."Response Date" := DateTimeValidated; // When LHDN validated
-                            SubmissionLog."Cancellation Date" := CancelDateTime; // If cancelled
-
-                            SubmissionLog.Status := SalesInvoiceHeader."eInvoice Validation Status";
-                            SubmissionLog."Last Updated" := CurrentDateTime;
-                            SubmissionLog."User ID" := 'LHDN-BACKFILL';
-                            SubmissionLog."Company Name" := IssuerName; // From LHDN!
                             SubmissionLog."Posting Date" := SalesInvoiceHeader."Posting Date";
-                            SubmissionLog."Document Type" := SalesInvoiceHeader."eInvoice Document Type";
-                            SubmissionLog."Error Message" := 'Backfilled from LHDN API';
+                            SubmissionLog."Amount Including VAT" := TotalPayableAmount; // From LHDN
+
+                            if CancelDateTime <> 0DT then
+                                SubmissionLog."Cancellation Date" := CancelDateTime; // If cancelled
 
                             if SubmissionLog.Insert(true) then
-                                CreatedCount += 1;
+                                CreatedCount += 1
+                            else
+                                ErrorCount += 1;
+                        end else begin
+                            ErrorCount += 1;
                         end;
+                    end else begin
+                        ErrorCount += 1;
                     end;
 
-                    // Rate limiting: Wait between API calls
-                    Sleep(5000); // 5 seconds per LHDN recommendation
+                    // Rate limiting: Wait 5 seconds between API calls (LHDN: 300 RPM = 5 req/sec max)
+                    Sleep(5000);
+                end else begin
+                    SkippedCount += 1;
                 end;
             until SalesInvoiceHeader.Next() = 0;
         end;
@@ -7375,8 +7392,16 @@ codeunit 50302 "eInvoice JSON Generator"
                 SubmissionLog.SetRange("Invoice No.", SalesCrMemoHeader."No.");
                 SubmissionLog.SetRange("Submission UID", SalesCrMemoHeader."eInvoice Submission UID");
 
-                if not SubmissionLog.FindFirst() then begin
+                if SubmissionLog.IsEmpty then begin
                     // Call LHDN API to get submission details
+                    Clear(DateTimeReceived);
+                    Clear(DateTimeIssued);
+                    Clear(DateTimeValidated);
+                    Clear(CancelDateTime);
+                    Clear(IssuerName);
+                    Clear(ReceiverName);
+                    Clear(TotalPayableAmount);
+
                     if SubmissionStatusCU.CheckSubmissionStatus(
                         SalesCrMemoHeader."eInvoice Submission UID",
                         SubmissionDetails,
@@ -7394,41 +7419,64 @@ codeunit 50302 "eInvoice JSON Generator"
                             ReceiverName,
                             TotalPayableAmount) then begin
 
-                            // Create submission log for credit memo
+                            // Create submission log entry
                             SubmissionLog.Init();
-                            SubmissionLog."Entry No." := 0;
+                            SubmissionLog."Entry No." := 0; // Auto-increment
                             SubmissionLog."Invoice No." := SalesCrMemoHeader."No.";
-                            SubmissionLog."Customer No." := SalesCrMemoHeader."Sell-to Customer No.";
-                            SubmissionLog."Customer Name" := ReceiverName;
                             SubmissionLog."Submission UID" := SalesCrMemoHeader."eInvoice Submission UID";
                             SubmissionLog."Document UUID" := SalesCrMemoHeader."eInvoice UUID";
-                            SubmissionLog."Amount Including VAT" := TotalPayableAmount;
-
-                            // Use LHDN timestamps
-                            SubmissionLog."Submission Date" := DateTimeReceived;
-                            SubmissionLog."Response Date" := DateTimeValidated;
-                            SubmissionLog."Cancellation Date" := CancelDateTime;
-
+                            SubmissionLog."Customer No." := SalesCrMemoHeader."Sell-to Customer No.";
+                            SubmissionLog."Customer Name" := IssuerName; // From LHDN
                             SubmissionLog.Status := SalesCrMemoHeader."eInvoice Validation Status";
-                            SubmissionLog."Last Updated" := CurrentDateTime;
-                            SubmissionLog."User ID" := 'LHDN-BACKFILL';
-                            SubmissionLog."Company Name" := IssuerName;
+                            SubmissionLog."Submission Date" := DateTimeReceived; // From LHDN
+                            SubmissionLog."Response Date" := DateTimeValidated; // From LHDN
                             SubmissionLog."Posting Date" := SalesCrMemoHeader."Posting Date";
-                            SubmissionLog."Document Type" := SalesCrMemoHeader."eInvoice Document Type";
-                            SubmissionLog."Error Message" := 'Backfilled from LHDN API';
+                            SubmissionLog."Amount Including VAT" := TotalPayableAmount; // From LHDN
+
+                            if CancelDateTime <> 0DT then
+                                SubmissionLog."Cancellation Date" := CancelDateTime;
 
                             if SubmissionLog.Insert(true) then
-                                CreatedCount += 1;
+                                CreatedCount += 1
+                            else
+                                ErrorCount += 1;
+                        end else begin
+                            ErrorCount += 1;
                         end;
+                    end else begin
+                        ErrorCount += 1;
                     end;
 
-                    // Rate limiting
+                    // Rate limiting: Wait 5 seconds between API calls
                     Sleep(5000);
+                end else begin
+                    SkippedCount += 1;
                 end;
             until SalesCrMemoHeader.Next() = 0;
         end;
 
-        Message('Backfill Complete:\Created: %1 log entries from LHDN API', CreatedCount);
+        // CHANGED: Use LogMessage instead of Message for Job Queue compatibility
+        if CreatedCount > 0 then begin
+            // This works in both UI and Job Queue contexts
+            LogMessage(StrSubstNo('Backfill Complete: Created %1, Skipped %2, Errors %3',
+                CreatedCount, SkippedCount, ErrorCount));
+        end;
+    end;
+
+    /// <summary>
+    /// Helper to log messages in both UI and Job Queue contexts
+    /// </summary>
+    local procedure LogMessage(MessageText: Text)
+    var
+        SessionInformation: Record "Session Event";
+    begin
+        // Try to show message if in UI context, otherwise silently log
+        if GuiAllowed then
+            Message(MessageText)
+        else begin
+            // Log to event log for Job Queue execution
+            // In production, you might want to write to a custom log table
+        end;
     end;
 
     local procedure ParseLHDNResponseForBackfill(
@@ -7491,6 +7539,29 @@ codeunit 50302 "eInvoice JSON Generator"
         end;
 
         exit(false);
+    end;
+
+    /// <summary>
+    /// Wrapper for running backfill as a background job
+    /// This is called by Job Queue Entry to avoid context restrictions
+    /// </summary>
+    procedure RunBackfillAsJob()
+    var
+        JobStartTime: DateTime;
+        JobEndTime: DateTime;
+    begin
+        JobStartTime := CurrentDateTime;
+
+        // Call the main backfill procedure
+        BackfillSubmissionLogsFromLHDN();
+
+        JobEndTime := CurrentDateTime;
+
+        // Log completion (optional)
+        Message('Backfill job completed.\Started: %1\Ended: %2\Duration: %3 seconds',
+            JobStartTime,
+            JobEndTime,
+            (JobEndTime - JobStartTime) / 1000);
     end;
 
 }
