@@ -157,6 +157,26 @@ page 50316 "e-Invoice Submission Log"
     {
         area(processing)
         {
+            action(ToggleShowAll)
+            {
+                ApplicationArea = All;
+                Caption = 'Show All / Latest Only';
+                Image = FilterLines;
+                ToolTip = 'Toggle between showing all submissions or only the latest submission for each invoice';
+                Promoted = true;
+                PromotedCategory = Process;
+
+                trigger OnAction()
+                begin
+                    ShowOnlyLatest := not ShowOnlyLatest;
+                    if ShowOnlyLatest then
+                        Message('Showing only latest submissions')
+                    else
+                        Message('Showing all submissions');
+                    ApplyLatestFilter();
+                end;
+            }
+
             action(ViewErrorDetails)
             {
                 ApplicationArea = All;
@@ -968,6 +988,67 @@ page 50316 "e-Invoice Submission Log"
         }
     }
 
+    var
+        IsJotexCompany: Boolean;
+        CanResubmit: Boolean;
+        ShowOnlyLatest: Boolean;
+
+    trigger OnOpenPage()
+    var
+        CompanyInfo: Record "Company Information";
+    begin
+        IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
+        // By default, show only the latest submission for each invoice
+        ShowOnlyLatest := true;
+        ApplyLatestFilter();
+    end;
+
+    local procedure ApplyLatestFilter()
+    var
+        TempSubmissionLog: Record "eInvoice Submission Log" temporary;
+        AllLogs: Record "eInvoice Submission Log";
+        LatestLogs: Record "eInvoice Submission Log";
+        ProcessedInvoices: List of [Text];
+        MaxDate: DateTime;
+    begin
+        if not ShowOnlyLatest then begin
+            Rec.Reset();
+            Rec.SetRange("Invoice No."); // Clear filter
+            CurrPage.Update(false);
+            exit;
+        end;
+
+        // For each unique invoice, find the entry with the latest Submission Date
+        AllLogs.Reset();
+        if AllLogs.FindSet() then begin
+            repeat
+                if not ProcessedInvoices.Contains(AllLogs."Invoice No.") then begin
+                    ProcessedInvoices.Add(AllLogs."Invoice No.");
+
+                    // Find max submission date for this invoice
+                    LatestLogs.Reset();
+                    LatestLogs.SetRange("Invoice No.", AllLogs."Invoice No.");
+                    LatestLogs.SetCurrentKey("Submission Date");
+                    LatestLogs.SetAscending("Submission Date", false);
+                    if LatestLogs.FindFirst() then begin
+                        // This is the latest entry for this invoice
+                        TempSubmissionLog := LatestLogs;
+                        TempSubmissionLog.Insert();
+                    end;
+                end;
+            until AllLogs.Next() = 0;
+        end;
+
+        // Apply filter to show only these entries
+        if TempSubmissionLog.FindSet() then begin
+            Rec.Reset();
+            repeat
+                Rec.SetFilter("Entry No.", Rec.GetFilter("Entry No.") + '|' + Format(TempSubmissionLog."Entry No."));
+            until TempSubmissionLog.Next() = 0;
+        end;
+
+        CurrPage.Update(false);
+    end;
 
     local procedure ShowSubmissionHistory()
     var
@@ -993,9 +1074,32 @@ page 50316 "e-Invoice Submission Log"
         for i := 0 to HistoryArray.Count() - 1 do begin
             HistoryArray.Get(i, JsonToken);
             HistoryEntry := JsonToken.AsObject();
-            DisplayText += StrSubstNo('Attempt #%1\\', i + 1);
-            DisplayText += 'Date: ' + GetJsonValue(HistoryEntry, 'SubmissionDate') + '\\';
-            DisplayText += 'Status: ' + GetJsonValue(HistoryEntry, 'Status') + '\\\\';
+            DisplayText += StrSubstNo('--- Attempt #%1 ---\\', i + 1);
+            DisplayText += 'Submission Date: ' + GetJsonValue(HistoryEntry, 'SubmissionDate') + '\\';
+            DisplayText += 'Status: ' + GetJsonValue(HistoryEntry, 'Status') + '\\';
+
+            // Show error details if present
+            if GetJsonValue(HistoryEntry, 'ErrorCode') <> '' then begin
+                DisplayText += 'Error Code: ' + GetJsonValue(HistoryEntry, 'ErrorCode') + '\\';
+                DisplayText += 'Error Field: ' + GetJsonValue(HistoryEntry, 'ErrorPropertyPath') + '\\';
+                DisplayText += 'Error Message: ' + GetJsonValue(HistoryEntry, 'ErrorEnglish') + '\\';
+                if GetJsonValue(HistoryEntry, 'HTTPStatusCode') <> '' then
+                    DisplayText += 'HTTP Status: ' + GetJsonValue(HistoryEntry, 'HTTPStatusCode') + '\\';
+                if GetJsonValue(HistoryEntry, 'CorrelationID') <> '' then
+                    DisplayText += 'Correlation ID: ' + GetJsonValue(HistoryEntry, 'CorrelationID') + '\\';
+            end;
+
+            // Show submission details
+            if GetJsonValue(HistoryEntry, 'CustomerName') <> '' then
+                DisplayText += 'Customer: ' + GetJsonValue(HistoryEntry, 'CustomerName') + '\\';
+            if GetJsonValue(HistoryEntry, 'Amount') <> '' then
+                DisplayText += 'Amount: ' + GetJsonValue(HistoryEntry, 'Amount') + '\\';
+            if GetJsonValue(HistoryEntry, 'SubmissionUID') <> '' then
+                DisplayText += 'Submission UID: ' + GetJsonValue(HistoryEntry, 'SubmissionUID') + '\\';
+            if GetJsonValue(HistoryEntry, 'DocumentUUID') <> '' then
+                DisplayText += 'Document UUID: ' + GetJsonValue(HistoryEntry, 'DocumentUUID') + '\\';
+
+            DisplayText += 'User: ' + GetJsonValue(HistoryEntry, 'UserID') + '\\\\';
         end;
         Message(DisplayText);
     end;
@@ -1703,17 +1807,6 @@ page 50316 "e-Invoice Submission Log"
             else
                 exit(StatusValue);
         end;
-    end;
-
-    var
-        IsJotexCompany: Boolean;
-        CanResubmit: Boolean;
-
-    trigger OnOpenPage()
-    var
-        CompanyInfo: Record "Company Information";
-    begin
-        IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
     end;
 
     trigger OnAfterGetCurrRecord()
