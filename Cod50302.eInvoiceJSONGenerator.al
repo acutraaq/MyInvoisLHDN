@@ -5028,9 +5028,6 @@ codeunit 50302 "eInvoice JSON Generator"
             end;
         end;
 
-        // *** NEW: Auto-consolidate if multiple entries exist for this invoice ***
-        AutoConsolidateSubmissionLog(SalesInvoiceHeader."No.", DocumentType);
-
         // Parse and store error details if present
         if ErrorMessage <> '' then begin
             // Extract HTTP status code and correlation ID if present in format: HTTP 400: {...}|CORRELATIONID:xxx
@@ -7538,16 +7535,6 @@ codeunit 50302 "eInvoice JSON Generator"
         end;
 
         exit(false);
-    end;
-
-    local procedure AutoConsolidateSubmissionLog(InvoiceNo: Code[20]; DocType: Code[20])
-    var
-        LogConsolidation: Codeunit "eInvoice Log Consolidation";
-    begin
-        // Automatically consolidate duplicate entries for this invoice
-        // This keeps only the latest entry (by Submission Date) visible in the main list
-        // Older entries are moved to history
-        LogConsolidation.AutoConsolidateForInvoice(InvoiceNo, DocType);
     end;
 
     /// <summary>

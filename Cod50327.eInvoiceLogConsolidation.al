@@ -47,20 +47,15 @@ codeunit 50327 "eInvoice Log Consolidation"
         OutStream: OutStream;
         HistoryText: Text;
         AttemptNo: Integer;
-        LatestSubmissionDate: DateTime;
     begin
         AllLogs.SetRange("Invoice No.", InvoiceNo);
         if DocType <> '' then
             AllLogs.SetRange("Document Type", DocType);
-
-        // CHANGED: Sort by Submission Date instead of Entry No.
-        AllLogs.SetCurrentKey("Submission Date");
-        AllLogs.SetAscending("Submission Date", true);
-
+        AllLogs.SetCurrentKey("Entry No.");
+        AllLogs.SetAscending("Entry No.", true);
         if not AllLogs.FindSet() then
             exit(false);
 
-        // Build history from ALL attempts
         AttemptNo := 0;
         repeat
             AttemptNo += 1;
@@ -71,80 +66,32 @@ codeunit 50327 "eInvoice Log Consolidation"
             HistoryEntry.Add('DocumentUUID', AllLogs."Document UUID");
             HistoryEntry.Add('Status', AllLogs.Status);
             HistoryEntry.Add('SubmissionDate', Format(AllLogs."Submission Date", 0, 9));
-            HistoryEntry.Add('ResponseDate', Format(AllLogs."Response Date", 0, 9));
-            HistoryEntry.Add('ErrorMessage', AllLogs."Error Message");  // CHANGED: No truncation
-            HistoryEntry.Add('ErrorCode', AllLogs."Error Code");  // NEW
-            HistoryEntry.Add('ErrorPropertyPath', AllLogs."Error Property Path");  // NEW
-            HistoryEntry.Add('ErrorEnglish', AllLogs."Error English");  // NEW
-            HistoryEntry.Add('ErrorMalay', AllLogs."Error Malay");  // NEW
-            HistoryEntry.Add('ErrorTarget', AllLogs."Error Target");  // NEW
-            HistoryEntry.Add('HTTPStatusCode', Format(AllLogs."HTTP Status Code"));  // NEW
-            HistoryEntry.Add('CorrelationID', AllLogs."Correlation ID");  // NEW
+            HistoryEntry.Add('ErrorMessage', CopyStr(AllLogs."Error Message", 1, 200));
             HistoryEntry.Add('UserID', AllLogs."User ID");
-            HistoryEntry.Add('CustomerName', AllLogs."Customer Name");  // NEW
-            HistoryEntry.Add('Amount', Format(AllLogs.Amount));  // NEW
-            HistoryEntry.Add('AmountInclVAT', Format(AllLogs."Amount Including VAT"));  // NEW
-            HistoryEntry.Add('Environment', Format(AllLogs.Environment));  // NEW
             HistoryArray.Add(HistoryEntry);
         until AllLogs.Next() = 0;
 
-        // CHANGED: Find the entry with the LATEST Submission Date
-        AllLogs.Reset();
-        AllLogs.SetRange("Invoice No.", InvoiceNo);
-        if DocType <> '' then
-            AllLogs.SetRange("Document Type", DocType);
-        AllLogs.SetCurrentKey("Submission Date");
-        AllLogs.SetAscending("Submission Date", false); // Descending to get latest first
-        AllLogs.FindFirst();
+        AllLogs.FindLast();
         LatestLog := AllLogs;
-        LatestSubmissionDate := LatestLog."Submission Date";
-
-        // Remove the latest entry from history (it will be the current record)
         if HistoryArray.Count() > 1 then
             HistoryArray.RemoveAt(HistoryArray.Count() - 1);
-
-        // Store history in the latest log entry
         if HistoryArray.Count() > 0 then begin
             HistoryArray.WriteTo(HistoryText);
             Clear(LatestLog."Submission History");
             LatestLog."Submission History".CreateOutStream(OutStream);
             OutStream.WriteText(HistoryText);
         end;
-
         LatestLog."Attempt Number" := AttemptNo;
         LatestLog.Modify(false);
 
-        // CHANGED: Delete all entries EXCEPT the one with the latest Submission Date
         OlderLog.SetRange("Invoice No.", InvoiceNo);
         if DocType <> '' then
             OlderLog.SetRange("Document Type", DocType);
-        OlderLog.SetFilter("Submission Date", '<%1', LatestSubmissionDate);
-
+        OlderLog.SetFilter("Entry No.", '<%1', LatestLog."Entry No.");
         if OlderLog.FindSet(true) then
             repeat
                 OlderLog.Delete(false);
             until OlderLog.Next() = 0;
-
         exit(true);
-    end;
-
-    /// <summary>
-    /// Automatically consolidate duplicates for a specific invoice
-    /// Called after creating new submission log entries
-    /// </summary>
-    procedure AutoConsolidateForInvoice(InvoiceNo: Code[20]; DocType: Code[20])
-    var
-        SubmissionLog: Record "eInvoice Submission Log";
-        Count: Integer;
-    begin
-        // Check if there are multiple entries for this invoice
-        SubmissionLog.SetRange("Invoice No.", InvoiceNo);
-        if DocType <> '' then
-            SubmissionLog.SetRange("Document Type", DocType);
-        Count := SubmissionLog.Count();
-
-        // Only consolidate if there are 2 or more entries
-        if Count > 1 then
-            ConsolidateInvoiceSubmissions(InvoiceNo, DocType);
     end;
 }
