@@ -3186,6 +3186,9 @@ codeunit 50302 "eInvoice JSON Generator"
                         SubmissionLog."Error Message" := CopyStr('Document rejected by LHDN - No detailed error information available', 1, MaxStrLen(SubmissionLog."Error Message"));
                         SubmissionLog.Modify(true);
                     end;
+
+                    // Auto-consolidate to keep only latest submission visible
+                    AutoConsolidateSubmissionLog(SalesInvoiceHeader."No.", SalesInvoiceHeader."eInvoice Document Type");
                 end;
             end;
         end;
@@ -5028,6 +5031,9 @@ codeunit 50302 "eInvoice JSON Generator"
             end;
         end;
 
+        // *** NEW: Auto-consolidate if multiple entries exist for this invoice ***
+        AutoConsolidateSubmissionLog(SalesInvoiceHeader."No.", DocumentType);
+
         // Parse and store error details if present
         if ErrorMessage <> '' then begin
             // Extract HTTP status code and correlation ID if present in format: HTTP 400: {...}|CORRELATIONID:xxx
@@ -5145,6 +5151,9 @@ codeunit 50302 "eInvoice JSON Generator"
         if SubmissionLog.Insert() then
             // Parse and store the error details using the enhanced error parser
             SubmissionStatusCU.ParseAndStoreErrorResponse(SubmissionLog, ErrorResponse, HttpStatusCode, CorrelationId);
+
+        // Auto-consolidate to keep only latest submission visible
+        AutoConsolidateSubmissionLog(SalesInvoiceHeader."No.", SalesInvoiceHeader."eInvoice Document Type");
     end;
 
     /// <summary>
@@ -5277,6 +5286,9 @@ codeunit 50302 "eInvoice JSON Generator"
         SubmissionLog."Document Type" := SalesCrMemoHeader."eInvoice Document Type";
 
         if SubmissionLog.Insert() then begin
+            // Auto-consolidate to keep only latest submission visible
+            AutoConsolidateSubmissionLog(SalesCrMemoHeader."No.", SalesCrMemoHeader."eInvoice Document Type");
+
             LhdnResponse := 'Credit Memo submission logged successfully. Full implementation pending.';
             exit(true);
         end else begin
@@ -5875,6 +5887,9 @@ codeunit 50302 "eInvoice JSON Generator"
             exit;
         end;
 
+        // Auto-consolidate to keep only latest submission visible
+        AutoConsolidateSubmissionLog(SalesCrMemoHeader."No.", DocumentType);
+
         // Parse and store error details if present
         if ErrorMessage <> '' then begin
             // Extract HTTP status code and correlation ID if present in format: HTTP 400: {...}|CORRELATIONID:xxx
@@ -5958,9 +5973,13 @@ codeunit 50302 "eInvoice JSON Generator"
             SubmissionLog.Environment := SubmissionLog.Environment::Preprod;
 
         // Insert first
-        if SubmissionLog.Insert() then
+        if SubmissionLog.Insert() then begin
             // Parse and store the error details
             SubmissionStatusCU.ParseAndStoreErrorResponse(SubmissionLog, ErrorResponse, HttpStatusCode, CorrelationId);
+
+            // Auto-consolidate to keep only latest submission visible
+            AutoConsolidateSubmissionLog(SalesCrMemoHeader."No.", SalesCrMemoHeader."eInvoice Document Type");
+        end;
     end;
 
     // Helper procedure to generate credit memo JSON
@@ -7460,7 +7479,19 @@ codeunit 50302 "eInvoice JSON Generator"
             // This works in both UI and Job Queue contexts
             LogMessage(StrSubstNo('Backfill Complete: Created %1, Skipped %2, Errors %3',
                 CreatedCount, SkippedCount, ErrorCount));
+
+            // Run consolidation once after backfilling all invoices
+            // This will process all invoices in bulk
+            LogMessage('Running consolidation to merge duplicate entries...');
+            RunBulkConsolidation();
         end;
+    end;
+
+    local procedure RunBulkConsolidation()
+    var
+        LogConsolidation: Codeunit "eInvoice Log Consolidation";
+    begin
+        LogConsolidation.ConsolidateDuplicateSubmissionLogs();
     end;
 
     /// <summary>
@@ -7535,6 +7566,16 @@ codeunit 50302 "eInvoice JSON Generator"
         end;
 
         exit(false);
+    end;
+
+    local procedure AutoConsolidateSubmissionLog(InvoiceNo: Code[20]; DocType: Code[20])
+    var
+        LogConsolidation: Codeunit "eInvoice Log Consolidation";
+    begin
+        // Automatically consolidate duplicate entries for this invoice
+        // This keeps only the latest entry (by Submission Date) visible in the main list
+        // Older entries are moved to history
+        LogConsolidation.AutoConsolidateForInvoice(InvoiceNo, DocType);
     end;
 
     /// <summary>

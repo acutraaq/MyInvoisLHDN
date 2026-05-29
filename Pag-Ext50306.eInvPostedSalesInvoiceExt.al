@@ -1450,6 +1450,7 @@
             SubmissionLog."Document Type" := Rec."eInvoice Document Type";
             if SubmissionLog.Insert() then begin
                 // Successfully created log entry
+                AutoConsolidateSubmissionLog(Rec."No.", Rec."eInvoice Document Type");
             end;
         end;
     end;
@@ -1740,5 +1741,14 @@
                 // Successfully created log entry
             end;
         end;
+        // Auto-consolidate to keep only latest submission visible
+        AutoConsolidateSubmissionLog(DocNo, Rec."eInvoice Document Type");
+    end;
+
+    local procedure AutoConsolidateSubmissionLog(InvoiceNo: Code[20]; DocType: Code[20])
+    var
+        LogConsolidation: Codeunit "eInvoice Log Consolidation";
+    begin
+        LogConsolidation.AutoConsolidateForInvoice(InvoiceNo, DocType);
     end;
 }

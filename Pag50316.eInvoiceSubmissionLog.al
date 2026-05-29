@@ -960,13 +960,24 @@ page 50316 "e-Invoice Submission Log"
                                 'Refresh this page in a few minutes to see new log entries.',
                                 SessionId)
                     else
-                        Error('Failed to start background seesion.');
+                        Error('Failed to start background session.');
                 end;
             }
 
 
         }
     }
+
+    var
+        IsJotexCompany: Boolean;
+        CanResubmit: Boolean;
+
+    trigger OnOpenPage()
+    var
+        CompanyInfo: Record "Company Information";
+    begin
+        IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
+    end;
 
 
     local procedure ShowSubmissionHistory()
@@ -993,9 +1004,32 @@ page 50316 "e-Invoice Submission Log"
         for i := 0 to HistoryArray.Count() - 1 do begin
             HistoryArray.Get(i, JsonToken);
             HistoryEntry := JsonToken.AsObject();
-            DisplayText += StrSubstNo('Attempt #%1\\', i + 1);
-            DisplayText += 'Date: ' + GetJsonValue(HistoryEntry, 'SubmissionDate') + '\\';
+            DisplayText += StrSubstNo('--- Attempt #%1 ---\\', i + 1);
+            DisplayText += 'Submission Date: ' + GetJsonValue(HistoryEntry, 'SubmissionDate') + '\\';
             DisplayText += 'Status: ' + GetJsonValue(HistoryEntry, 'Status') + '\\\\';
+
+            // Show error details if present
+            if GetJsonValue(HistoryEntry, 'ErrorCode') <> '' then begin
+                DisplayText += 'Error Code: ' + GetJsonValue(HistoryEntry, 'ErrorCode') + '\\';
+                DisplayText += 'Error Field: ' + GetJsonValue(HistoryEntry, 'ErrorPropertyPath') + '\\';
+                DisplayText += 'Error Message: ' + GetJsonValue(HistoryEntry, 'ErrorEnglish') + '\\';
+                if GetJsonValue(HistoryEntry, 'HTTPStatusCode') <> '' then
+                    DisplayText += 'HTTP Status: ' + GetJsonValue(HistoryEntry, 'HTTPStatusCode') + '\\';
+                if GetJsonValue(HistoryEntry, 'CorrelationID') <> '' then
+                    DisplayText += 'Correlation ID: ' + GetJsonValue(HistoryEntry, 'CorrelationID') + '\\';
+            end;
+
+            // Show submission details
+            if GetJsonValue(HistoryEntry, 'CustomerName') <> '' then
+                DisplayText += 'Customer: ' + GetJsonValue(HistoryEntry, 'CustomerName') + '\\';
+            if GetJsonValue(HistoryEntry, 'Amount') <> '' then
+                DisplayText += 'Amount: ' + GetJsonValue(HistoryEntry, 'Amount') + '\\';
+            if GetJsonValue(HistoryEntry, 'SubmissionUID') <> '' then
+                DisplayText += 'Submission UID: ' + GetJsonValue(HistoryEntry, 'SubmissionUID') + '\\';
+            if GetJsonValue(HistoryEntry, 'DocumentUUID') <> '' then
+                DisplayText += 'Document UUID: ' + GetJsonValue(HistoryEntry, 'DocumentUUID') + '\\';
+
+            DisplayText += 'User: ' + GetJsonValue(HistoryEntry, 'UserID') + '\\\\';
         end;
         Message(DisplayText);
     end;
@@ -1703,17 +1737,6 @@ page 50316 "e-Invoice Submission Log"
             else
                 exit(StatusValue);
         end;
-    end;
-
-    var
-        IsJotexCompany: Boolean;
-        CanResubmit: Boolean;
-
-    trigger OnOpenPage()
-    var
-        CompanyInfo: Record "Company Information";
-    begin
-        IsJotexCompany := CompanyInfo.Get() and (CompanyInfo.Name = 'JOTEX SDN BHD');
     end;
 
     trigger OnAfterGetCurrRecord()
