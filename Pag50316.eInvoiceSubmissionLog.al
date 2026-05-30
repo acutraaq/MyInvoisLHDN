@@ -990,16 +990,27 @@ page 50316 "e-Invoice Submission Log"
         i: Integer;
         DisplayText: Text;
     begin
+        // ADDED: Enhanced diagnostic when BLOB has no value
         if not Rec."Submission History".HasValue then begin
-            Message('No history available');
+            Message('No history available.\\\DEBUG INFO:\Attempt Number: %1\BLOB Has Value: false\\\This means consolidation set Attempt Number but didn''t save history.',
+                    Rec."Attempt Number");
             exit;
         end;
-        Rec."Submission History".CreateInStream(InStream);
+
+        Rec."Submission History".CreateInStream(InStream, TextEncoding::UTF8);
         InStream.ReadText(HistoryText);
+
+        // ADDED: Show diagnostic info if parsing fails
         if not HistoryArray.ReadFrom(HistoryText) then begin
-            Message('Cannot read history');
+            Message('Cannot read history.\\\DEBUG INFO:\Attempt Number: %1\BLOB Length: %2 characters\BLOB Has Value: true\\\First 200 chars:\%3\\\Last 50 chars:\%4',
+                    Rec."Attempt Number",
+                    StrLen(HistoryText),
+                    CopyStr(HistoryText, 1, 200),
+                    CopyStr(HistoryText, StrLen(HistoryText) - 49, 50));
             exit;
         end;
+
+        // Rest of existing code unchanged
         DisplayText := StrSubstNo('HISTORY - Invoice: %1, Total Attempts: %2\\\\', Rec."Invoice No.", Rec."Attempt Number");
         for i := 0 to HistoryArray.Count() - 1 do begin
             HistoryArray.Get(i, JsonToken);
@@ -1031,6 +1042,7 @@ page 50316 "e-Invoice Submission Log"
 
             DisplayText += 'User: ' + GetJsonValue(HistoryEntry, 'UserID') + '\\\\';
         end;
+
         Message(DisplayText);
     end;
 
