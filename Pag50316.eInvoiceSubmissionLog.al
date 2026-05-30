@@ -990,7 +990,7 @@ page 50316 "e-Invoice Submission Log"
         i: Integer;
         DisplayText: Text;
     begin
-        // ADDED: Enhanced diagnostic when BLOB has no value
+        // ENHANCED: Check if BLOB has value with better diagnostic
         if not Rec."Submission History".HasValue then begin
             Message('No history available.\\\DEBUG INFO:\Attempt Number: %1\BLOB Has Value: false\\\This means consolidation set Attempt Number but didn''t save history.',
                     Rec."Attempt Number");
@@ -1000,13 +1000,24 @@ page 50316 "e-Invoice Submission Log"
         Rec."Submission History".CreateInStream(InStream, TextEncoding::UTF8);
         InStream.ReadText(HistoryText);
 
-        // ADDED: Show diagnostic info if parsing fails
+        // ENHANCED: Safe handling of empty or invalid JSON with detailed diagnostics
         if not HistoryArray.ReadFrom(HistoryText) then begin
-            Message('Cannot read history.\\\DEBUG INFO:\Attempt Number: %1\BLOB Length: %2 characters\BLOB Has Value: true\\\First 200 chars:\%3\\\Last 50 chars:\%4',
-                    Rec."Attempt Number",
-                    StrLen(HistoryText),
-                    CopyStr(HistoryText, 1, 200),
-                    CopyStr(HistoryText, StrLen(HistoryText) - 49, 50));
+            if StrLen(HistoryText) = 0 then begin
+                Message('Cannot read history - BLOB is EMPTY!\\\DEBUG INFO:\Attempt Number: %1\BLOB Has Value: true\BLOB Length: 0 characters\\\ROOT CAUSE:\The consolidation process created the BLOB but wrote an empty string.\This is a bug in the consolidation code (likely encoding mismatch).\\\SOLUTION:\1. Delete this entry and resubmit the invoice, OR\2. Run consolidation again after applying the fix to consolidation code.');
+            end else if StrLen(HistoryText) < 100 then begin
+                // For short strings, show complete content
+                Message('Cannot read history - Invalid JSON!\\\DEBUG INFO:\Attempt Number: %1\BLOB Length: %2 characters\BLOB Has Value: true\\\Complete BLOB content:\%3\\\This content could not be parsed as valid JSON array.',
+                        Rec."Attempt Number",
+                        StrLen(HistoryText),
+                        HistoryText);
+            end else begin
+                // For longer strings, show first and last parts
+                Message('Cannot read history - Invalid JSON!\\\DEBUG INFO:\Attempt Number: %1\BLOB Length: %2 characters\BLOB Has Value: true\\\First 200 chars:\%3\\\Last 50 chars:\%4\\\This content could not be parsed as valid JSON array.',
+                        Rec."Attempt Number",
+                        StrLen(HistoryText),
+                        CopyStr(HistoryText, 1, 200),
+                        CopyStr(HistoryText, StrLen(HistoryText) - 49, 50));
+            end;
             exit;
         end;
 
