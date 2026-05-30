@@ -374,6 +374,7 @@ page 50316 "e-Invoice Submission Log"
                 Enabled = Rec."Attempt Number" > 1;
                 Promoted = true;
                 PromotedCategory = Process;
+                Visible = false;
 
                 trigger OnAction()
                 begin
@@ -1003,7 +1004,7 @@ page 50316 "e-Invoice Submission Log"
         // ENHANCED: Safe handling of empty or invalid JSON with detailed diagnostics
         if not HistoryArray.ReadFrom(HistoryText) then begin
             if StrLen(HistoryText) = 0 then begin
-                Message('Cannot read history - BLOB is EMPTY!\\\DEBUG INFO:\Attempt Number: %1\BLOB Has Value: true\BLOB Length: 0 characters\\\ROOT CAUSE:\The consolidation process created the BLOB but wrote an empty string.\This is a bug in the consolidation code (likely encoding mismatch).\\\SOLUTION:\1. Delete this entry and resubmit the invoice, OR\2. Run consolidation again after applying the fix to consolidation code.');
+                Message('Cannot read history - BLOB is EMPTY!\\\DEBUG INFO:\Attempt Number: %1\BLOB Has Value: true\BLOB Length: 0 characters\\\ROOT CAUSE:\The consolidation process created the BLOB but wrote an empty string.');
             end else if StrLen(HistoryText) < 100 then begin
                 // For short strings, show complete content
                 Message('Cannot read history - Invalid JSON!\\\DEBUG INFO:\Attempt Number: %1\BLOB Length: %2 characters\BLOB Has Value: true\\\Complete BLOB content:\%3\\\This content could not be parsed as valid JSON array.',
