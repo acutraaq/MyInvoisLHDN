@@ -2177,6 +2177,10 @@ codeunit 50302 "eInvoice JSON Generator"
                 exit('JPN');
             'AU', 'AUS', 'AUSTRALIA':
                 exit('AUS');
+            'BN', 'BRN', 'BRUNEI', 'BRUNEI DARUSSALAM':
+                exit('BRN');
+            'PK', 'PAK', 'PAKISTAN':
+                exit('PAK');
             else
                 exit('MYS'); // Default to Malaysia
         end;
