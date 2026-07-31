@@ -2183,6 +2183,8 @@ codeunit 50302 "eInvoice JSON Generator"
                 exit('PAK');
             'HK', 'HKG', 'HONG KONG':
                 exit('HKG');
+            'LT', 'LTU', 'LITHUANIA':
+                exit('LTU');
             else
                 exit('MYS'); // Default to Malaysia
         end;
