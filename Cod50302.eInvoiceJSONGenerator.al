@@ -915,6 +915,9 @@ codeunit 50302 "eInvoice JSON Generator"
                 AddBasicField(DocRefObject, 'ID', CopyStr(SalesInvoiceHeader."External Document No.", 1, 26))
             else
                 AddBasicField(DocRefObject, 'ID', SalesInvoiceHeader."External Document No.");
+
+            AddBasicField(DocRefObject, 'DocumentType', 'PurchaseOrder');
+
             AdditionalDocRefArray.Add(DocRefObject);
             BillingRefObject.Add('AdditionalDocumentReference', AdditionalDocRefArray);
             BillingRefArray.Add(BillingRefObject);
