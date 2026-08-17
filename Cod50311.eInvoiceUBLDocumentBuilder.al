@@ -1215,6 +1215,7 @@ codeunit 50311 "eInvoice UBL Document Builder"
         CreditNoteObject: JsonObject;
         AdditionalDocumentReference: JsonObject;
         ID: JsonObject;
+        DocumentType: JsonObject;  // ✅ ADD THIS
     begin
         UBLDocument.Get('CreditNote', CreditNoteToken);
         CreditNoteObject := CreditNoteToken.AsObject();
@@ -1222,6 +1223,10 @@ codeunit 50311 "eInvoice UBL Document Builder"
         // Add additional document reference with credit memo number
         ID.Add('_text', SalesCrMemoHeader."No.");
         AdditionalDocumentReference.Add('cbc:ID', ID);
+
+        // ✅ ADD THESE 2 LINES:
+        DocumentType.Add('_text', 'CreditNote');
+        AdditionalDocumentReference.Add('cbc:DocumentType', DocumentType);
 
         CreditNoteObject.Add('cac:AdditionalDocumentReference', AdditionalDocumentReference);
         UBLDocument.Replace('CreditNote', CreditNoteObject);
