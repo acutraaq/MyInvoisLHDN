@@ -905,29 +905,21 @@ codeunit 50302 "eInvoice JSON Generator"
         BillingRefArray: JsonArray;
         BillingRefObject: JsonObject;
         AdditionalDocRefArray: JsonArray;
-        AdditionalDocRefObject: JsonObject;
-        IDObject: JsonObject;
-        DocumentTypeObject: JsonObject;
-        ExternalDocNo: Text;
+        DocRefObject: JsonObject;
     begin
         // Only add if there's a reference document
         if SalesInvoiceHeader."External Document No." <> '' then begin
             // LHDN MyInvois API enforces 26-character limit for BillingReference ID fields
             // Reference: https://sdk.myinvois.hasil.gov.my/documents/credit-v1-1/
             if StrLen(SalesInvoiceHeader."External Document No.") > 26 then
-                ExternalDocNo := CopyStr(SalesInvoiceHeader."External Document No.", 1, 26)
+                AddBasicField(DocRefObject, 'ID', CopyStr(SalesInvoiceHeader."External Document No.", 1, 26))
             else
-                ExternalDocNo := SalesInvoiceHeader."External Document No.";
+                AddBasicField(DocRefObject, 'ID', SalesInvoiceHeader."External Document No.");
 
-            // Build ID object (direct format - matching Cod50311 pattern)
-            IDObject.Add('_', ExternalDocNo);
-            AdditionalDocRefObject.Add('ID', IDObject);
+            // Add DocumentType
+            AddBasicField(DocRefObject, 'DocumentType', 'PurchaseOrder');
 
-            // Build DocumentType object (direct format - matching Cod50311 pattern)
-            DocumentTypeObject.Add('_', 'PurchaseOrder');
-            AdditionalDocRefObject.Add('DocumentType', DocumentTypeObject);
-
-            AdditionalDocRefArray.Add(AdditionalDocRefObject);
+            AdditionalDocRefArray.Add(DocRefObject);
             BillingRefObject.Add('AdditionalDocumentReference', AdditionalDocRefArray);
             BillingRefArray.Add(BillingRefObject);
             InvoiceObject.Add('BillingReference', BillingRefArray);
