@@ -659,9 +659,6 @@ codeunit 50302 "eInvoice JSON Generator"
         // Billing reference (if applicable)
         AddBillingReference(InvoiceObject, SalesInvoiceHeader);
 
-        // Additional document references
-        AddAdditionalDocumentReferences(InvoiceObject, SalesInvoiceHeader);
-
         // Party information
         if not CompanyInformation.Get() then
             Error('Company Information not found');
@@ -753,9 +750,6 @@ codeunit 50302 "eInvoice JSON Generator"
 
         // Billing reference (credit note requires reference to original invoice)
         AddCreditMemoBillingReference(InvoiceObject, SalesCrMemoHeader);
-
-        // Additional document references
-        AddAdditionalDocumentReferences(InvoiceObject, SalesCrMemoHeader);
 
         // Party information
         if not CompanyInformation.Get() then
