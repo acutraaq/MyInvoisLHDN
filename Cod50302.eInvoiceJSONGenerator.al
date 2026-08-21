@@ -6368,9 +6368,14 @@ codeunit 50302 "eInvoice JSON Generator"
     var
         AllowanceChargeArray: JsonArray;
         AllowanceChargeObject: JsonObject;
+        ChargeIndicatorArray: JsonArray;
         ChargeIndicatorObject: JsonObject;
+        AmountArray: JsonArray;
         AmountObject: JsonObject;
+        BaseAmountArray: JsonArray;
         BaseAmountObject: JsonObject;
+        AllowanceChargeReasonArray: JsonArray;
+        AllowanceChargeReasonObject: JsonObject;
         TotalDiscountAmount: Decimal;
     begin
         // Calculate total discount amount from credit memo lines
@@ -6378,13 +6383,32 @@ codeunit 50302 "eInvoice JSON Generator"
 
         // Add allowance/charges for credit memos
         if TotalDiscountAmount <> 0 then begin
-            AddBasicField(ChargeIndicatorObject, 'ChargeIndicator', 'false');
-            AddBasicField(AmountObject, 'Amount', Format(TotalDiscountAmount));
-            AddBasicField(BaseAmountObject, 'BaseAmount', Format(SalesCrMemoHeader."Amount Including VAT"));
+            // ChargeIndicator as array
+            Clear(ChargeIndicatorArray);
+            ChargeIndicatorObject.Add('_', false);
+            ChargeIndicatorArray.Add(ChargeIndicatorObject);
+            AllowanceChargeObject.Add('ChargeIndicator', ChargeIndicatorArray);
 
-            AllowanceChargeObject.Add('ChargeIndicator', ChargeIndicatorObject);
-            AllowanceChargeObject.Add('Amount', AmountObject);
-            AllowanceChargeObject.Add('BaseAmount', BaseAmountObject);
+            // AllowanceChargeReason as array
+            Clear(AllowanceChargeReasonArray);
+            AllowanceChargeReasonObject.Add('_', 'Discount');
+            AllowanceChargeReasonArray.Add(AllowanceChargeReasonObject);
+            AllowanceChargeObject.Add('AllowanceChargeReason', AllowanceChargeReasonArray);
+
+            // Amount as array - ✅ FIXED: Use GetCurrencyCodeFromText
+            Clear(AmountArray);
+            AmountObject.Add('_', TotalDiscountAmount);
+            AmountObject.Add('currencyID', GetCurrencyCodeFromText(SalesCrMemoHeader."Currency Code"));
+            AmountArray.Add(AmountObject);
+            AllowanceChargeObject.Add('Amount', AmountArray);
+
+            // BaseAmount as array - ✅ FIXED: Use GetCurrencyCodeFromText
+            Clear(BaseAmountArray);
+            BaseAmountObject.Add('_', SalesCrMemoHeader."Amount Including VAT");
+            BaseAmountObject.Add('currencyID', GetCurrencyCodeFromText(SalesCrMemoHeader."Currency Code"));
+            BaseAmountArray.Add(BaseAmountObject);
+            AllowanceChargeObject.Add('BaseAmount', BaseAmountArray);
+
             AllowanceChargeArray.Add(AllowanceChargeObject);
             InvoiceObject.Add('AllowanceCharge', AllowanceChargeArray);
         end;
