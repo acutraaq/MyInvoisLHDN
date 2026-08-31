@@ -33,6 +33,11 @@ tableextension 50300 eInvoiceCustomerExt extends Customer
             Caption = 'e-Invoice ID Type';
             OptionMembers = NRIC,BRN,PASSPORT,ARMY;
             ToolTip = 'ID Type required for e-Invoice: NRIC, BRN, PASSPORT, or ARMY.';
+
+            trigger OnValidate()
+            begin
+                TryAutoPopulateTinNo();
+            end;
         }
         field(50306; "e-Invoice TIN No."; Text[150])
         {
@@ -47,6 +52,11 @@ tableextension 50300 eInvoiceCustomerExt extends Customer
         {
             Caption = 'e-Invoice ID No.';
             DataClassification = CustomerContent;
+
+            trigger OnValidate()
+            begin
+                TryAutoPopulateTinNo();
+            end;
         }
         field(50309; "Last Validated TIN Name"; Text[150])
         {
@@ -54,4 +64,12 @@ tableextension 50300 eInvoiceCustomerExt extends Customer
             DataClassification = CustomerContent;
         }
     }
+
+    local procedure TryAutoPopulateTinNo()
+    var
+        TinValidator: Codeunit "eInvoice TIN Validator";
+    begin
+        // Silent call from field validation to avoid popup disruption while typing.
+        TinValidator.AutoPopulateTinFromId(Rec, false);
+    end;
 }
