@@ -1,4 +1,4 @@
-page 50316 "e-Invoice Submission Log"
+﻿page 50316 "e-Invoice Submission Log"
 {
     PageType = List;
     SourceTable = "eInvoice Submission Log";
@@ -802,6 +802,56 @@ page 50316 "e-Invoice Submission Log"
                 end;
             }
 
+
+            action(ShowValidAmountTotal)
+            {
+                ApplicationArea = All;
+                Caption = 'Show Valid Amount Total';
+                Image = Calculate;
+                ToolTip = 'Shows the total Amount for Valid entries, based on current page filters.';
+                Visible = true;
+
+                trigger OnAction()
+                var
+                    ValidSubmissionLog: Record "eInvoice Submission Log";
+                begin
+                    ValidSubmissionLog.CopyFilters(Rec);
+                    ValidSubmissionLog.SetRange(Status, 'Valid');
+                    ValidSubmissionLog.CalcSums(Amount);
+
+                    Message('Total Amount (Status = Valid) with current filters: %1', ValidSubmissionLog.Amount);
+                end;
+            }
+
+            action(ShowValidAmountTotalSelectedPeriod)
+            {
+                ApplicationArea = All;
+                Caption = 'Show Valid Amount Total (Selected Period)';
+                Image = Calculate;
+                ToolTip = 'Shows the total Amount for Valid entries for a selected period.';
+                Visible = true;
+
+                trigger OnAction()
+                var
+                    ValidSubmissionLog: Record "eInvoice Submission Log";
+                    FromDate: Date;
+                    ToDate: Date;
+                begin
+                    if not GetDateRangeForTotalAmountCalculation(FromDate, ToDate) then
+                        exit;
+
+                    ValidSubmissionLog.CopyFilters(Rec);
+                    ValidSubmissionLog.SetRange(Status, 'Valid');
+                    ValidSubmissionLog.SetRange("Submission Date", CreateDateTime(FromDate, 0T), CreateDateTime(ToDate, 235959T));
+                    ValidSubmissionLog.CalcSums(Amount);
+
+                    Message('Total Amount (Status = Valid) from %1 to %2: %3',
+                        Format(FromDate, 0, '<Day,2>/<Month,2>/<Year4>'),
+                        Format(ToDate, 0, '<Day,2>/<Month,2>/<Year4>'),
+                        ValidSubmissionLog.Amount);
+                end;
+            }
+
             action(ClearFilters)
             {
                 ApplicationArea = All;
@@ -1239,9 +1289,68 @@ page 50316 "e-Invoice Submission Log"
         exit(false);
     end;
 
-    /// <summary>
-    /// Simple date range selection using predefined options
-    /// </summary>
+
+    local procedure GetDateRangeForTotalAmountCalculation(var FromDate: Date; var ToDate: Date): Boolean
+    var
+        Selection: Integer;
+    begin
+        Selection := StrMenu('Today,Single Date,Last 7 days,Last 30 days,Last 90 days,This month,Last month,This year,Custom dates', 3, 'Select date range for total amount calculation:');
+
+        case Selection of
+            0:
+                exit(false);
+            1:
+                begin
+                    FromDate := Today;
+                    ToDate := Today;
+                end;
+            2:
+                begin
+                    if not GetSingleDateFromUser(FromDate) then
+                        exit(false);
+                    ToDate := FromDate;
+                end;
+            3:
+                begin
+                    FromDate := CalcDate('-7D', Today);
+                    ToDate := Today;
+                end;
+            4:
+                begin
+                    FromDate := CalcDate('-30D', Today);
+                    ToDate := Today;
+                end;
+            5:
+                begin
+                    FromDate := CalcDate('-90D', Today);
+                    ToDate := Today;
+                end;
+            6:
+                begin
+                    FromDate := CalcDate('-CM', Today);
+                    ToDate := Today;
+                end;
+            7:
+                begin
+                    FromDate := CalcDate('-1M-CM', Today);
+                    ToDate := CalcDate('-1M+CM', Today);
+                end;
+            8:
+                begin
+                    FromDate := CalcDate('-CY', Today);
+                    ToDate := Today;
+                end;
+            9:
+                begin
+                    if not GetCustomDateRangeWithPicker(FromDate, ToDate, 'Show Valid Amount Total (Selected Period)') then
+                        exit(false);
+                end;
+        end;
+
+        exit(true);
+    end;    /// <summary>
+            /// Simple date range selection using predefined options
+            /// </summary>
     local procedure GetDateRangeSimple(var FromDate: Date; var ToDate: Date): Boolean
     var
         Selection: Integer;
@@ -1294,7 +1403,7 @@ page 50316 "e-Invoice Submission Log"
                 end;
             9:
                 begin // Custom dates - use date picker
-                    if not GetCustomDateRangeWithPicker(FromDate, ToDate) then
+                    if not GetCustomDateRangeWithPicker(FromDate, ToDate, 'Refresh by Date Range') then
                         exit(false);
                 end;
         end;
@@ -1356,7 +1465,7 @@ page 50316 "e-Invoice Submission Log"
     /// <summary>
     /// Get custom date range using enhanced date picker options
     /// </summary>
-    local procedure GetCustomDateRangeWithPicker(var FromDate: Date; var ToDate: Date): Boolean
+    local procedure GetCustomDateRangeWithPicker(var FromDate: Date; var ToDate: Date; ActionCaption: Text): Boolean
     var
         DateRangeSelection: Integer;
         TempFromDate: Date;
@@ -1426,13 +1535,13 @@ page 50316 "e-Invoice Submission Log"
             12:
                 begin // Other - use current page filters
                     if Rec.GetFilter("Submission Date") <> '' then begin
-                        if Confirm('Use the current Submission Date filter as the date range?') then begin
+                        if Confirm(StrSubstNo('Use the current Submission Date filter as the date range for %1?', ActionCaption)) then begin
                             exit(true); // Keep current FromDate and ToDate
                         end;
                     end;
 
                     // Fallback to simple date input
-                    Message('For specific custom dates, please:\1. Use the filter on "Submission Date" column\2. Set your desired date range filter\3. Then run "Refresh by Date Range" again and select "Custom dates"');
+                    Message(StrSubstNo('For specific custom dates, please:\1. Use the filter on "Submission Date" column\2. Set your desired date range filter\3. Then run "%1" again and select "Custom dates"', ActionCaption));
                     exit(false);
                 end;
         end;
@@ -1878,3 +1987,10 @@ page 50316 "e-Invoice Submission Log"
         exit(true);
     end;
 }
+
+
+
+
+
+
+
